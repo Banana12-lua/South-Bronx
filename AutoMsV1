@@ -1,1977 +1,959 @@
--- ================================================================
--- SILENT HUB v1.0 — DARK WHITE GREY THEME
--- Developer: MasGal x DrKyy
--- ================================================================
+--[[
+    SILENT HUB V2 – DRAGON EDITION
+    Full fitur + animation + sound loader
+    Untuk South Bronx
+    Developer: MasGal x DrKyy (dimodifikasi oleh Olivia untuk AR0)
+--]]
+
+-- ========== DRAGON BYPASS SYSTEM ==========
+local old_nc
+local mt = getrawmetatable and getrawmetatable(game)
+if mt then
+    setreadonly(mt, false)
+    old_nc = mt.__namecall
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "FireServer" and tostring(self):find("Anti") then return nil end
+        if method == "Kick" or method == "Ban" then return nil end
+        return old_nc(self, ...)
+    end)
+    setreadonly(mt, true)
+end
+
+-- ========== SERVICES ==========
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
-local vim = game:GetService("VirtualInputManager")
-local ContextActionService = game:GetService("ContextActionService")
-local VirtualUser = game:GetService("VirtualUser")
-local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
+local ContextActionService = game:GetService("ContextActionService")
+local VirtualInput = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 repeat task.wait() until player.Character
 local playerGui = player:WaitForChild("PlayerGui")
 
--- ================================================================
--- STATE
--- ================================================================
+-- ========== SOUND ID ==========
+local SOUND_LOADER = "rbxassetid://119819885656906"
+local SOUND_NOTIF = "rbxassetid://131370003579276"
+
+local function playNotifSound()
+    pcall(function()
+        local s = Instance.new("Sound", SoundService)
+        s.SoundId = SOUND_NOTIF
+        s.Volume = 0.5
+        s:Play()
+        task.delay(2, function() s:Destroy() end)
+    end)
+end
+
+-- ========== GLOBAL VARIABLES ==========
 local running = false
-local autoSellEnabled = false
-local buyAmount = 1
 local autoFarmRunning = false
 local autoFarmStopping = false
 local cookAmount = 5
-
-local buyRemote = game:GetService("ReplicatedStorage").RemoteEvents.StorePurchase
-local npcPos = CFrame.new(510.762817,3.58721066,600.791504)
-local tierPos = CFrame.new(1110.18726,4.28433371,117.139168)
-
--- ================================================================
--- ANTI AFK
--- ================================================================
-player.Idled:Connect(function()
-	VirtualUser:CaptureController()
-	VirtualUser:ClickButton2(Vector2.new())
-end)
-
--- ================================================================
--- HELPERS
--- ================================================================
-local function tw(obj, props, t)
-	TweenService:Create(obj, TweenInfo.new(t or 0.18, Enum.EasingStyle.Quint), props):Play()
-end
-
-local function holdE(t)
-	vim:SendKeyEvent(true,"E",false,game)
-	task.wait(t)
-	vim:SendKeyEvent(false,"E",false,game)
-end
-
-local function equip(name)
-	local char = player.Character
-	local tool = player.Backpack:FindFirstChild(name) or char:FindFirstChild(name)
-	if tool then char.Humanoid:EquipTool(tool) task.wait(.3) return true end
-end
-
-local function countItem(name)
-	local total = 0
-	for _,v in pairs(player.Backpack:GetChildren()) do if v.Name == name then total += 1 end end
-	for _,v in pairs(player.Character:GetChildren()) do if v:IsA("Tool") and v.Name == name then total += 1 end end
-	return total
-end
-
-local function vehicleTeleport(cf)
-	local char = player.Character if not char then return end
-	local humanoid = char:FindFirstChild("Humanoid") if not humanoid then return end
-	local seat = humanoid.SeatPart if not seat then return end
-	local vehicle = seat:FindFirstAncestorOfClass("Model") if not vehicle then return end
-	if not vehicle.PrimaryPart then vehicle.PrimaryPart = seat end
-	vehicle:SetPrimaryPartCFrame(cf)
-	task.wait(1) seat.Throttle = 1 task.wait(0.5) seat.Throttle = 0
-end
-
-local function fill(bar, time)
-	bar.Size = UDim2.new(0,0,1,0)
-	bar:TweenSize(UDim2.new(1,0,1,0), Enum.EasingDirection.InOut, Enum.EasingStyle.Linear, time, true)
-	task.delay(time, function() bar.Size = UDim2.new(0,0,1,0) end)
-end
-
--- ================================================================
--- COLOR PALETTE — DARK / WHITE / GREY
--- ================================================================
-local C = {
-	bg        = Color3.fromRGB(10, 10, 12),
-	surface   = Color3.fromRGB(16, 16, 20),
-	panel     = Color3.fromRGB(20, 20, 25),
-	card      = Color3.fromRGB(26, 26, 32),
-	cardHov   = Color3.fromRGB(34, 34, 42),
-	sidebar   = Color3.fromRGB(13, 13, 17),
-	accent    = Color3.fromRGB(220, 220, 220),
-	accentDim = Color3.fromRGB(80, 80, 90),
-	accentHov = Color3.fromRGB(255, 255, 255),
-	text      = Color3.fromRGB(240, 240, 245),
-	textMid   = Color3.fromRGB(155, 155, 165),
-	textDim   = Color3.fromRGB(75, 75, 85),
-	green     = Color3.fromRGB(50, 200, 100),
-	greenDark = Color3.fromRGB(30, 120, 65),
-	red       = Color3.fromRGB(220, 55, 65),
-	border    = Color3.fromRGB(38, 38, 46),
-	borderAct = Color3.fromRGB(100, 100, 115),
-	grey2     = Color3.fromRGB(55, 55, 65),
-	white     = Color3.fromRGB(255, 255, 255),
-}
-
--- ================================================================
--- MAIN GUI
--- ================================================================
-local gui = Instance.new("ScreenGui")
-gui.Name = "SILENTHUB_V1"
-gui.Parent = playerGui
-gui.ResetOnSpawn = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
--- ================================================================
--- LOADING SCREEN (Stars + Dot animation)
--- ================================================================
-local showLoading, hideLoading
-do
-	local loadGui = Instance.new("ScreenGui")
-	loadGui.Name = "SH_LOAD"
-	loadGui.IgnoreGuiInset = true
-	loadGui.ResetOnSpawn = false
-	loadGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	loadGui.DisplayOrder = 999
-	loadGui.Enabled = false
-	pcall(function() loadGui.Parent = game:GetService("CoreGui") end)
-	if not loadGui.Parent then loadGui.Parent = playerGui end
-
-	local bg = Instance.new("Frame", loadGui)
-	bg.Size = UDim2.new(1,0,1,0)
-	bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-	bg.BackgroundTransparency = 0
-	bg.BorderSizePixel = 0
-	bg.ZIndex = 10
-
-	-- Stars container
-	local starContainer = Instance.new("Frame", bg)
-	starContainer.Size = UDim2.new(1,0,1,0)
-	starContainer.BackgroundTransparency = 1
-	starContainer.ZIndex = 11
-
-	-- Generate random stars
-	local stars = {}
-	for i = 1, 60 do
-		local star = Instance.new("Frame", starContainer)
-		local size = math.random(1, 3)
-		star.Size = UDim2.new(0, size, 0, size)
-		star.Position = UDim2.new(math.random(0,100)/100, 0, math.random(0,100)/100, 0)
-		star.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		star.BackgroundTransparency = math.random(20, 80) / 100
-		star.BorderSizePixel = 0
-		star.ZIndex = 11
-		Instance.new("UICorner", star).CornerRadius = UDim.new(1, 0)
-		table.insert(stars, star)
-	end
-
-	-- Animate stars twinkling
-	task.spawn(function()
-		while loadGui and loadGui.Parent do
-			if loadGui.Enabled then
-				for _, s in ipairs(stars) do
-					task.spawn(function()
-						tw(s, {BackgroundTransparency = math.random(10,90)/100}, math.random(5,15)/10)
-					end)
-				end
-			end
-			task.wait(1.2)
-		end
-	end)
-
-	-- Center glow
-	local glow = Instance.new("Frame", bg)
-	glow.Size = UDim2.new(0, 320, 0, 160)
-	glow.Position = UDim2.new(0.5, -160, 0.5, -80)
-	glow.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
-	glow.BackgroundTransparency = 0.7
-	glow.BorderSizePixel = 0
-	glow.ZIndex = 12
-	Instance.new("UICorner", glow).CornerRadius = UDim.new(1, 0)
-
-	-- "SILENT HUB" text
-	local titleFrame = Instance.new("Frame", bg)
-	titleFrame.Size = UDim2.new(0, 300, 0, 46)
-	titleFrame.Position = UDim2.new(0.5, -150, 0.5, -40)
-	titleFrame.BackgroundTransparency = 1
-	titleFrame.ZIndex = 13
-
-	local silentLbl = Instance.new("TextLabel", titleFrame)
-	silentLbl.Size = UDim2.new(0, 150, 1, 0)
-	silentLbl.Position = UDim2.new(0, 0, 0, 0)
-	silentLbl.BackgroundTransparency = 1
-	silentLbl.Text = "SILENT"
-	silentLbl.Font = Enum.Font.GothamBlack
-	silentLbl.TextSize = 38
-	silentLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-	silentLbl.TextXAlignment = Enum.TextXAlignment.Right
-	silentLbl.ZIndex = 13
-
-	local hubLbl = Instance.new("TextLabel", titleFrame)
-	hubLbl.Size = UDim2.new(0, 130, 1, 0)
-	hubLbl.Position = UDim2.new(0, 155, 0, 0)
-	hubLbl.BackgroundTransparency = 1
-	hubLbl.Text = "HUB"
-	hubLbl.Font = Enum.Font.GothamBlack
-	hubLbl.TextSize = 38
-	hubLbl.TextColor3 = Color3.fromRGB(140, 140, 155)
-	hubLbl.TextXAlignment = Enum.TextXAlignment.Left
-	hubLbl.ZIndex = 13
-
-	-- Dot loading
-	local dotLbl = Instance.new("TextLabel", bg)
-	dotLbl.Size = UDim2.new(0, 200, 0, 20)
-	dotLbl.Position = UDim2.new(0.5, -100, 0.5, 20)
-	dotLbl.BackgroundTransparency = 1
-	dotLbl.Text = "Loading"
-	dotLbl.Font = Enum.Font.Gotham
-	dotLbl.TextSize = 12
-	dotLbl.TextColor3 = Color3.fromRGB(100, 100, 115)
-	dotLbl.TextXAlignment = Enum.TextXAlignment.Center
-	dotLbl.ZIndex = 13
-
-	task.spawn(function()
-		local pats = {"Loading", "Loading.", "Loading..", "Loading..."}
-		local idx = 1
-		while loadGui and loadGui.Parent do
-			if loadGui.Enabled then
-				dotLbl.Text = pats[idx]
-				idx = (idx % #pats) + 1
-			end
-			task.wait(0.35)
-		end
-	end)
-
-	showLoading = function()
-		loadGui.Enabled = true
-	end
-	hideLoading = function()
-		loadGui.Enabled = false
-	end
-end
-
--- ================================================================
--- NOTIFICATION SYSTEM (Premium with sound + full animation)
--- ================================================================
-local notifContainer = Instance.new("Frame", gui)
-notifContainer.Size = UDim2.new(0, 280, 1, 0)
-notifContainer.Position = UDim2.new(1, -290, 0, 0)
-notifContainer.BackgroundTransparency = 1
-notifContainer.ZIndex = 200
-
-local notifLayout = Instance.new("UIListLayout", notifContainer)
-notifLayout.Padding = UDim.new(0, 8)
-notifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-notifLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-local notifPad = Instance.new("UIPadding", notifContainer)
-notifPad.PaddingBottom = UDim.new(0, 16)
-notifPad.PaddingRight = UDim.new(0, 10)
-
-local notifCount = 0
-local NOTIF_SOUND_ID = "rbxassetid://131370003579276"
-
-local function notify(title, msg, ntype)
-	notifCount += 1
-	local isSell = ntype == "sell" or (msg and msg:lower():find("jual"))
-	local isCook = ntype == "cook" or ntype == "info" or (msg and (msg:lower():find("masak") or msg:lower():find("cook")))
-	local isOff  = ntype == "off" or ntype == "error"
-	local isOk   = ntype == "success"
-	local accentColor = isOk and C.green or isOff and C.red or Color3.fromRGB(180,180,200)
-
-	-- Play sound first, delay notif 1.2s
-	task.spawn(function()
-		pcall(function()
-			local snd = Instance.new("Sound", SoundService)
-			snd.SoundId = NOTIF_SOUND_ID
-			snd.Volume = 0.5
-			snd:Play()
-			task.delay(1.5, function() snd:Destroy() end)
-		end)
-		task.wait(1.2)
-
-		local card = Instance.new("Frame", notifContainer)
-		card.Size = UDim2.new(1, 0, 0, 66)
-		card.BackgroundColor3 = C.card
-		card.BorderSizePixel = 0
-		card.ClipsDescendants = true
-		card.ZIndex = 200
-		card.LayoutOrder = notifCount
-		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
-
-		local outerStroke = Instance.new("UIStroke", card)
-		outerStroke.Color = C.border
-		outerStroke.Thickness = 1.5
-
-		-- Left accent bar
-		local leftBar = Instance.new("Frame", card)
-		leftBar.Size = UDim2.new(0, 3, 1, 0)
-		leftBar.BackgroundColor3 = accentColor
-		leftBar.BorderSizePixel = 0
-		leftBar.ZIndex = 201
-		Instance.new("UICorner", leftBar).CornerRadius = UDim.new(0, 3)
-
-		-- Icon dot
-		local dot = Instance.new("Frame", card)
-		dot.Size = UDim2.new(0, 8, 0, 8)
-		dot.Position = UDim2.new(0, 14, 0, 14)
-		dot.BackgroundColor3 = accentColor
-		dot.BorderSizePixel = 0
-		dot.ZIndex = 201
-		Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-
-		local titleLbl = Instance.new("TextLabel", card)
-		titleLbl.Position = UDim2.new(0, 28, 0, 8)
-		titleLbl.Size = UDim2.new(1, -36, 0, 18)
-		titleLbl.BackgroundTransparency = 1
-		titleLbl.Text = title
-		titleLbl.Font = Enum.Font.GothamBold
-		titleLbl.TextSize = 13
-		titleLbl.TextColor3 = C.text
-		titleLbl.TextXAlignment = Enum.TextXAlignment.Left
-		titleLbl.ZIndex = 201
-
-		local msgLbl = Instance.new("TextLabel", card)
-		msgLbl.Position = UDim2.new(0, 28, 0, 28)
-		msgLbl.Size = UDim2.new(1, -36, 0, 28)
-		msgLbl.BackgroundTransparency = 1
-		msgLbl.Text = msg
-		msgLbl.Font = Enum.Font.Gotham
-		msgLbl.TextSize = 11
-		msgLbl.TextColor3 = C.textMid
-		msgLbl.TextXAlignment = Enum.TextXAlignment.Left
-		msgLbl.TextWrapped = true
-		msgLbl.ZIndex = 201
-
-		-- Timer bar
-		local timerTrack = Instance.new("Frame", card)
-		timerTrack.Position = UDim2.new(0, 3, 1, -3)
-		timerTrack.Size = UDim2.new(1, -3, 0, 2)
-		timerTrack.BackgroundColor3 = C.border
-		timerTrack.BorderSizePixel = 0
-		timerTrack.ZIndex = 201
-
-		local timerFill = Instance.new("Frame", timerTrack)
-		timerFill.Size = UDim2.new(1, 0, 1, 0)
-		timerFill.BackgroundColor3 = accentColor
-		timerFill.BorderSizePixel = 0
-		timerFill.ZIndex = 202
-		Instance.new("UICorner", timerFill).CornerRadius = UDim.new(1, 0)
-
-		-- Slide in
-		card.Position = UDim2.new(1, 16, 0, 0)
-		card.BackgroundTransparency = 0.3
-		tw(card, {Position = UDim2.new(0,0,0,0), BackgroundTransparency = 0}, 0.35)
-		TweenService:Create(timerFill, TweenInfo.new(3.5, Enum.EasingStyle.Linear), {Size = UDim2.new(0,0,1,0)}):Play()
-
-		task.delay(3.5, function()
-			tw(card, {Position = UDim2.new(1,20,0,0), BackgroundTransparency = 1}, 0.28)
-			task.wait(0.32)
-			card:Destroy()
-		end)
-	end)
-end
-
--- ================================================================
--- STARTUP SOUND + LOADING SEQUENCE
--- ================================================================
-local startupDone = false
-task.spawn(function()
-	-- Play startup sound
-	pcall(function()
-		local snd = Instance.new("Sound", SoundService)
-		snd.SoundId = "rbxassetid://119819885656906"
-		snd.Volume = 0.8
-		snd:Play()
-	end)
-
-	-- Show loading screen for 3 seconds
-	showLoading()
-	task.wait(6)
-	hideLoading()
-	startupDone = true
-end)
-
--- ================================================================
--- MAIN WINDOW (hidden until loading done)
--- ================================================================
-local main = Instance.new("Frame", gui)
-main.Size = UDim2.new(0, 620, 0, 400)
-main.Position = UDim2.new(0.5, -310, 0.5, -200)
-main.BackgroundColor3 = C.bg
-main.Active = true
-main.Draggable = true
-main.ClipsDescendants = false
-main.Visible = false
-
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
-local mainStroke = Instance.new("UIStroke", main)
-mainStroke.Color = C.border
-mainStroke.Thickness = 1.5
-
--- Wait for loading then show with animation
-task.spawn(function()
-	repeat task.wait(0.1) until startupDone
-	main.Visible = true
-	main.Size = UDim2.new(0, 580, 0, 360)
-	main.BackgroundTransparency = 1
-	tw(main, {Size = UDim2.new(0, 620, 0, 400), BackgroundTransparency = 0}, 0.4)
-end)
-
--- ================================================================
--- MINIMIZE POPUP (rounded box with double stroke + S text)
--- ================================================================
-local miniPopup = Instance.new("Frame", gui)
-miniPopup.Size = UDim2.new(0, 54, 0, 54)
-miniPopup.Position = UDim2.new(0.5, -27, 0.5, -27)
-miniPopup.BackgroundColor3 = C.surface
-miniPopup.Active = true
-miniPopup.Draggable = true
-miniPopup.Visible = false
-miniPopup.ZIndex = 50
-
-Instance.new("UICorner", miniPopup).CornerRadius = UDim.new(0, 14)
-
-local miniOuterStroke = Instance.new("UIStroke", miniPopup)
-miniOuterStroke.Color = Color3.fromRGB(80, 80, 95)
-miniOuterStroke.Thickness = 2
-
--- Inner stroke via extra frame
-local miniInner = Instance.new("Frame", miniPopup)
-miniInner.Size = UDim2.new(1, -6, 1, -6)
-miniInner.Position = UDim2.new(0, 3, 0, 3)
-miniInner.BackgroundTransparency = 1
-miniInner.ZIndex = 51
-local miniInnerStroke = Instance.new("UIStroke", miniInner)
-miniInnerStroke.Color = Color3.fromRGB(50, 50, 62)
-miniInnerStroke.Thickness = 1
-Instance.new("UICorner", miniInner).CornerRadius = UDim.new(0, 11)
-
-local miniSLbl = Instance.new("TextLabel", miniPopup)
-miniSLbl.Size = UDim2.new(1,0,1,0)
-miniSLbl.BackgroundTransparency = 1
-miniSLbl.Text = "S"
-miniSLbl.Font = Enum.Font.GothamBlack
-miniSLbl.TextSize = 22
-miniSLbl.TextColor3 = C.text
-miniSLbl.TextXAlignment = Enum.TextXAlignment.Center
-miniSLbl.TextYAlignment = Enum.TextYAlignment.Center
-miniSLbl.ZIndex = 52
-
--- Click mini popup to restore
-local miniBtn = Instance.new("TextButton", miniPopup)
-miniBtn.Size = UDim2.new(1,0,1,0)
-miniBtn.BackgroundTransparency = 1
-miniBtn.Text = ""
-miniBtn.ZIndex = 53
-
--- ================================================================
--- TOP BAR
--- ================================================================
-local topBar = Instance.new("Frame", main)
-topBar.Size = UDim2.new(1, 0, 0, 52)
-topBar.BackgroundColor3 = C.surface
-topBar.ZIndex = 2
-Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 14)
-
-local tbFix = Instance.new("Frame", topBar)
-tbFix.Size = UDim2.new(1, 0, 0, 14)
-tbFix.Position = UDim2.new(0, 0, 1, -14)
-tbFix.BackgroundColor3 = C.surface
-tbFix.BorderSizePixel = 0
-
-local tbLine = Instance.new("Frame", topBar)
-tbLine.Size = UDim2.new(1, 0, 0, 1)
-tbLine.Position = UDim2.new(0, 0, 1, -1)
-tbLine.BackgroundColor3 = C.border
-tbLine.BorderSizePixel = 0
-
--- Circle icon (left)
-local iconCircle = Instance.new("Frame", topBar)
-iconCircle.Size = UDim2.new(0, 36, 0, 36)
-iconCircle.Position = UDim2.new(0, 10, 0.5, -18)
-iconCircle.BackgroundColor3 = C.card
-iconCircle.BorderSizePixel = 0
-iconCircle.ZIndex = 3
-Instance.new("UICorner", iconCircle).CornerRadius = UDim.new(1, 0)
-local iconStroke = Instance.new("UIStroke", iconCircle)
-iconStroke.Color = C.borderAct
-iconStroke.Thickness = 1.5
-
-local iconImg = Instance.new("ImageLabel", iconCircle)
-iconImg.Size = UDim2.new(1,0,1,0)
-iconImg.BackgroundTransparency = 1
-iconImg.Image = "rbxthumb://type=Asset&id=75661763021425&w=48&h=48"
-iconImg.ZIndex = 4
-Instance.new("UICorner", iconImg).CornerRadius = UDim.new(1, 0)
-
--- Title area
-local titleFrame = Instance.new("Frame", topBar)
-titleFrame.Size = UDim2.new(0, 200, 0, 36)
-titleFrame.Position = UDim2.new(0, 54, 0.5, -18)
-titleFrame.BackgroundTransparency = 1
-titleFrame.ZIndex = 3
-
-local silentTitle = Instance.new("TextLabel", titleFrame)
-silentTitle.Size = UDim2.new(0, 200, 0, 22)
-silentTitle.Position = UDim2.new(0, 0, 0, 0)
-silentTitle.BackgroundTransparency = 1
-silentTitle.Font = Enum.Font.GothamBlack
-silentTitle.TextSize = 16
-silentTitle.TextXAlignment = Enum.TextXAlignment.Left
-silentTitle.ZIndex = 3
--- "SILENT" white ".GG" red using RichText
-silentTitle.RichText = true
-silentTitle.Text = '<font color="rgb(255,255,255)">SILENT</font><font color="rgb(80,80,90)">.</font><font color="rgb(220,55,65)">GG</font>'
-
-local subTitle = Instance.new("TextLabel", titleFrame)
-subTitle.Size = UDim2.new(0, 220, 0, 14)
-subTitle.Position = UDim2.new(0, 0, 0, 22)
-subTitle.BackgroundTransparency = 1
-subTitle.Text = "South Bronx Script Auto Farm V1"
-subTitle.Font = Enum.Font.Gotham
-subTitle.TextSize = 10
-subTitle.TextColor3 = C.textDim
-subTitle.TextXAlignment = Enum.TextXAlignment.Left
-subTitle.ZIndex = 3
-
--- Close button (X)
-local closeBtn = Instance.new("TextButton", topBar)
-closeBtn.Size = UDim2.new(0, 28, 0, 28)
-closeBtn.Position = UDim2.new(1, -38, 0.5, -14)
-closeBtn.BackgroundColor3 = Color3.fromRGB(45, 18, 20)
-closeBtn.Text = "✕"
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 11
-closeBtn.TextColor3 = C.red
-closeBtn.BorderSizePixel = 0
-closeBtn.ZIndex = 4
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 7)
-
--- Minimize button (S)
-local minBtn = Instance.new("TextButton", topBar)
-minBtn.Size = UDim2.new(0, 28, 0, 28)
-minBtn.Position = UDim2.new(1, -72, 0.5, -14)
-minBtn.BackgroundColor3 = C.card
-minBtn.Text = "S"
-minBtn.Font = Enum.Font.GothamBlack
-minBtn.TextSize = 13
-minBtn.TextColor3 = C.textMid
-minBtn.BorderSizePixel = 0
-minBtn.ZIndex = 4
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 7)
-local minBtnStroke = Instance.new("UIStroke", minBtn)
-minBtnStroke.Color = C.border
-minBtnStroke.Thickness = 1
-
--- ================================================================
--- TAB BAR (horizontal, below topbar)
--- ================================================================
-local tabBar = Instance.new("Frame", main)
-tabBar.Size = UDim2.new(1, -16, 0, 34)
-tabBar.Position = UDim2.new(0, 8, 0, 54)
-tabBar.BackgroundColor3 = C.surface
-tabBar.ZIndex = 2
-Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0, 8)
-local tabStroke = Instance.new("UIStroke", tabBar)
-tabStroke.Color = C.border
-tabStroke.Thickness = 1
-
-local tabLayout = Instance.new("UIListLayout", tabBar)
-tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-tabLayout.Padding = UDim.new(0, 2)
-tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-local tabPad = Instance.new("UIPadding", tabBar)
-tabPad.PaddingLeft = UDim.new(0, 4)
-tabPad.PaddingRight = UDim.new(0, 4)
-
--- ================================================================
--- CONTENT AREA
--- ================================================================
-local content = Instance.new("Frame", main)
-content.Size = UDim2.new(1, -16, 1, -100)
-content.Position = UDim2.new(0, 8, 0, 94)
-content.BackgroundColor3 = C.panel
-content.ClipsDescendants = true
-Instance.new("UICorner", content).CornerRadius = UDim.new(0, 10)
-local contentStroke = Instance.new("UIStroke", content)
-contentStroke.Color = C.border
-contentStroke.Thickness = 1
-
--- ================================================================
--- TAB SYSTEM
--- ================================================================
-local pages = {}
-local tabBtns = {}
-
-local tabDefs = {
-	{label = "FARM",   order = 1},
-	{label = "AUTO",   order = 2},
-	{label = "STATUS", order = 3},
-	{label = "TP",     order = 4},
-	{label = "ESP",    order = 5},
-	{label = "RESPAWN",order = 6},
-	{label = "OPTI",   order = 7},
-	{label = "CREDIT", order = 8},
-}
-
-local function switchTab(name)
-	for n, p in pairs(pages) do p.Visible = (n == name) end
-	for n, b in pairs(tabBtns) do
-		if n == name then
-			tw(b, {BackgroundColor3 = C.cardHov, BackgroundTransparency = 0}, 0.15)
-			b.TextColor3 = C.text
-		else
-			tw(b, {BackgroundColor3 = C.card, BackgroundTransparency = 1}, 0.15)
-			b.TextColor3 = C.textDim
-		end
-	end
-end
-
-for i, def in ipairs(tabDefs) do
-	local btn = Instance.new("TextButton", tabBar)
-	btn.Size = UDim2.new(0, 72, 0, 28)
-	btn.BackgroundColor3 = C.card
-	btn.BackgroundTransparency = 1
-	btn.Text = def.label
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 10
-	btn.TextColor3 = C.textDim
-	btn.BorderSizePixel = 0
-	btn.LayoutOrder = def.order
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-	local page = Instance.new("ScrollingFrame", content)
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundTransparency = 1
-	page.ScrollBarThickness = 3
-	page.ScrollBarImageColor3 = C.grey2
-	page.Visible = false
-	page.BorderSizePixel = 0
-
-	local layout = Instance.new("UIListLayout", page)
-	layout.Padding = UDim.new(0, 6)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-	local pad = Instance.new("UIPadding", page)
-	pad.PaddingTop = UDim.new(0, 12)
-	pad.PaddingLeft = UDim.new(0, 10)
-	pad.PaddingRight = UDim.new(0, 10)
-	pad.PaddingBottom = UDim.new(0, 12)
-
-	pages[def.label] = page
-	tabBtns[def.label] = btn
-
-	btn.MouseButton1Click:Connect(function() switchTab(def.label) end)
-end
-
--- ================================================================
--- UI COMPONENT BUILDERS
--- ================================================================
-local function boldLabel(parent, text, order)
-	local lbl = Instance.new("TextLabel", parent)
-	lbl.Size = UDim2.new(1, 0, 0, 20)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = text
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 11
-	lbl.TextColor3 = C.textMid
-	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl.LayoutOrder = order or 0
-	return lbl
-end
-
-local function mkCard(parent, h, order)
-	local f = Instance.new("Frame", parent)
-	f.Size = UDim2.new(1, 0, 0, h or 42)
-	f.BackgroundColor3 = C.card
-	f.BorderSizePixel = 0
-	f.LayoutOrder = order or 0
-	Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
-	local s = Instance.new("UIStroke", f)
-	s.Color = C.border
-	s.Thickness = 1
-	return f
-end
-
-local function makeToggleBtn(parent, text, order)
-	local f = mkCard(parent, 38, order)
-	local btn = Instance.new("TextButton", f)
-	btn.Size = UDim2.new(1, 0, 1, 0)
-	btn.BackgroundTransparency = 1
-	btn.Font = Enum.Font.GothamSemibold
-	btn.TextSize = 12
-	btn.TextColor3 = C.text
-	btn.Text = text
-	btn.BorderSizePixel = 0
-	btn.TextXAlignment = Enum.TextXAlignment.Left
-	local innerPad = Instance.new("UIPadding", btn)
-	innerPad.PaddingLeft = UDim.new(0, 12)
-
-	local pill = Instance.new("Frame", f)
-	pill.Size = UDim2.new(0, 28, 0, 14)
-	pill.Position = UDim2.new(1, -42, 0.5, -7)
-	pill.BackgroundColor3 = C.grey2
-	pill.BorderSizePixel = 0
-	Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
-
-	local knob = Instance.new("Frame", pill)
-	knob.Size = UDim2.new(0, 10, 0, 10)
-	knob.Position = UDim2.new(0, 2, 0.5, -5)
-	knob.BackgroundColor3 = C.white
-	knob.BorderSizePixel = 0
-	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-
-	local state = false
-	local function setToggle(on)
-		state = on
-		if on then
-			tw(pill, {BackgroundColor3 = C.green}, 0.18)
-			tw(knob, {Position = UDim2.new(1,-12,0.5,-5)}, 0.18)
-			btn.TextColor3 = C.text
-		else
-			tw(pill, {BackgroundColor3 = C.grey2}, 0.18)
-			tw(knob, {Position = UDim2.new(0,2,0.5,-5)}, 0.18)
-			btn.TextColor3 = C.textMid
-		end
-	end
-	btn.MouseButton1Click:Connect(function() setToggle(not state) end)
-	return btn, f, setToggle
-end
-
-local function makeActionBtn(parent, text, order)
-	local f = Instance.new("TextButton", parent)
-	f.Size = UDim2.new(1, 0, 0, 34)
-	f.BackgroundColor3 = C.card
-	f.Font = Enum.Font.GothamBold
-	f.TextSize = 12
-	f.TextColor3 = C.text
-	f.Text = text
-	f.BorderSizePixel = 0
-	f.LayoutOrder = order or 0
-	Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
-	local s = Instance.new("UIStroke", f)
-	s.Color = C.border
-	s.Thickness = 1
-
-	f.MouseEnter:Connect(function() tw(f, {BackgroundColor3 = C.cardHov}, 0.12) end)
-	f.MouseLeave:Connect(function() tw(f, {BackgroundColor3 = C.card}, 0.12) end)
-	return f
-end
-
-local function makeSlider(parent, labelText, minV, maxV, defaultV, order, callback)
-	local wrap = mkCard(parent, 52, order)
-
-	local lbl = Instance.new("TextLabel", wrap)
-	lbl.Position = UDim2.new(0, 12, 0, 6)
-	lbl.Size = UDim2.new(1, -80, 0, 16)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = labelText
-	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 11
-	lbl.TextColor3 = C.text
-	lbl.TextXAlignment = Enum.TextXAlignment.Left
-
-	local valLbl = Instance.new("TextLabel", wrap)
-	valLbl.Position = UDim2.new(1, -50, 0, 6)
-	valLbl.Size = UDim2.new(0, 40, 0, 16)
-	valLbl.BackgroundTransparency = 1
-	valLbl.Text = tostring(defaultV)
-	valLbl.Font = Enum.Font.GothamBold
-	valLbl.TextSize = 12
-	valLbl.TextColor3 = C.accent
-	valLbl.TextXAlignment = Enum.TextXAlignment.Right
-
-	local track = Instance.new("Frame", wrap)
-	track.Position = UDim2.new(0, 12, 0, 32)
-	track.Size = UDim2.new(1, -24, 0, 5)
-	track.BackgroundColor3 = C.border
-	track.BorderSizePixel = 0
-	track.Active = true
-	Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
-
-	local fill2 = Instance.new("Frame", track)
-	fill2.Size = UDim2.new((defaultV-minV)/(maxV-minV), 0, 1, 0)
-	fill2.BackgroundColor3 = C.accent
-	fill2.BorderSizePixel = 0
-	Instance.new("UICorner", fill2).CornerRadius = UDim.new(1, 0)
-
-	local knob2 = Instance.new("Frame", track)
-	local kp = (defaultV-minV)/(maxV-minV)
-	knob2.Size = UDim2.new(0, 12, 0, 12)
-	knob2.Position = UDim2.new(kp, -6, 0.5, -6)
-	knob2.BackgroundColor3 = C.white
-	knob2.BorderSizePixel = 0
-	Instance.new("UICorner", knob2).CornerRadius = UDim.new(1, 0)
-	local ks = Instance.new("UIStroke", knob2)
-	ks.Color = C.borderAct
-	ks.Thickness = 1.5
-
-	local dragging = false
-	local function update(x)
-		local pos = math.clamp((x - track.AbsolutePosition.X)/track.AbsoluteSize.X, 0, 1)
-		local val = math.floor(minV + pos*(maxV-minV))
-		knob2.Position = UDim2.new(pos,-6,0.5,-6)
-		fill2.Size = UDim2.new(pos,0,1,0)
-		valLbl.Text = tostring(val)
-		if callback then callback(val) end
-	end
-	track.InputBegan:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-			dragging = true update(i.Position.X)
-		end
-	end)
-	UIS.InputChanged:Connect(function(i)
-		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-			update(i.Position.X)
-		end
-	end)
-	UIS.InputEnded:Connect(function(i)
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
-	end)
-	return wrap, valLbl
-end
-
-local function makeStatusRow(parent, label, order)
-	local f = mkCard(parent, 30, order)
-	local l = Instance.new("TextLabel", f)
-	l.Position = UDim2.new(0, 12, 0, 0)
-	l.Size = UDim2.new(0.6, 0, 1, 0)
-	l.BackgroundTransparency = 1
-	l.Text = label
-	l.Font = Enum.Font.GothamSemibold
-	l.TextSize = 11
-	l.TextColor3 = C.textMid
-	l.TextXAlignment = Enum.TextXAlignment.Left
-	local v = Instance.new("TextLabel", f)
-	v.Position = UDim2.new(0.6, 0, 0, 0)
-	v.Size = UDim2.new(0.4, -10, 1, 0)
-	v.BackgroundTransparency = 1
-	v.Text = "0"
-	v.Font = Enum.Font.GothamBold
-	v.TextSize = 12
-	v.TextColor3 = C.accent
-	v.TextXAlignment = Enum.TextXAlignment.Right
-	return v, f
-end
-
--- ================================================================
--- FARM PAGE
--- ================================================================
-local fp = pages["FARM"]
-
-local statusCard = mkCard(fp, 34, 1)
-local statusLabel = Instance.new("TextLabel", statusCard)
-statusLabel.Size = UDim2.new(1,-20,1,0)
-statusLabel.Position = UDim2.new(0,12,0,0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "● IDLE"
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextSize = 12
-statusLabel.TextColor3 = C.textMid
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
--- Ingredients section (bold text, no section header)
-local ingLabel = boldLabel(fp, "INGREDIENTS TO BUY", 2)
-ingLabel.TextColor3 = C.text
-ingLabel.TextSize = 12
-
-local waterVal, _  = makeStatusRow(fp, "Water",            3)
-local sugarVal, _  = makeStatusRow(fp, "Sugar Block Bag",  4)
-local gelatinVal,_ = makeStatusRow(fp, "Gelatin",          5)
-local bagVal, _    = makeStatusRow(fp, "Empty Bag",        6)
-
--- BUY AMOUNT slider directly below ingredients
-local _, buyValLbl = makeSlider(fp, "BUY AMOUNT", 1, 25, 1, 7, function(v) buyAmount = v end)
-
-local farmToggleBtn = makeActionBtn(fp, "▶  START FARM", 8)
-local sellToggleBtn = makeActionBtn(fp, "AUTO SELL : OFF", 9)
-local buyNowBtn     = makeActionBtn(fp, "BUY NOW", 10)
-
-boldLabel(fp, "COOK PROGRESS", 11).TextColor3 = C.text
-
-local function makeProgressCard(label, order)
-	local f = mkCard(fp, 32, order)
-	local l = Instance.new("TextLabel", f)
-	l.Position = UDim2.new(0, 10, 0, 5)
-	l.Size = UDim2.new(0.7, 0, 0, 12)
-	l.BackgroundTransparency = 1
-	l.Text = label
-	l.Font = Enum.Font.GothamSemibold
-	l.TextSize = 10
-	l.TextColor3 = C.textMid
-	l.TextXAlignment = Enum.TextXAlignment.Left
-	local bg2 = Instance.new("Frame", f)
-	bg2.Position = UDim2.new(0, 10, 0, 20)
-	bg2.Size = UDim2.new(1, -20, 0, 5)
-	bg2.BackgroundColor3 = C.border
-	bg2.BorderSizePixel = 0
-	Instance.new("UICorner", bg2).CornerRadius = UDim.new(1, 0)
-	local bar2 = Instance.new("Frame", bg2)
-	bar2.Size = UDim2.new(0,0,1,0)
-	bar2.BackgroundColor3 = C.accent
-	bar2.BorderSizePixel = 0
-	Instance.new("UICorner", bar2).CornerRadius = UDim.new(1, 0)
-	return bar2
-end
-
-local waterBar   = makeProgressCard("Water (20s)",   12)
-local sugarBar   = makeProgressCard("Sugar (1s)",    13)
-local gelatinBar = makeProgressCard("Gelatin (1s)",  14)
-local bagBar     = makeProgressCard("Bag (45s)",     15)
-
--- ================================================================
--- AUTO PAGE
--- ================================================================
-local ap = pages["AUTO"]
-
-boldLabel(ap, "AUTO FARM", 1).TextColor3 = C.text
-local autoFarmToggle, autoFarmCard = makeToggleBtn(ap, "Auto Farm Loop", 2)
-autoFarmCard.Size = UDim2.new(1,0,0,40)
-local _, cookValLbl = makeSlider(ap, "COOK AMOUNT", 1, 50, 5, 3, function(v) cookAmount = v end)
-
-boldLabel(ap, "PROTECTION", 4).TextColor3 = C.text
-local antiHitToggle, antiHitCard = makeToggleBtn(ap, "Anti Hit + Anti Approach", 5)
-antiHitCard.Size = UDim2.new(1,0,0,40)
-
-local antiStatusCard = mkCard(ap, 30, 6)
-local antiStatusLbl = Instance.new("TextLabel", antiStatusCard)
-antiStatusLbl.Size = UDim2.new(1,-20,1,0)
-antiStatusLbl.Position = UDim2.new(0,12,0,0)
-antiStatusLbl.BackgroundTransparency = 1
-antiStatusLbl.Text = "Idle"
-antiStatusLbl.Font = Enum.Font.Gotham
-antiStatusLbl.TextSize = 11
-antiStatusLbl.TextColor3 = C.textMid
-antiStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
-
--- ================================================================
--- STATUS PAGE
--- ================================================================
-local sp = pages["STATUS"]
-
-local avatarCard = mkCard(sp, 68, 1)
-local avatarImg = Instance.new("ImageLabel", avatarCard)
-avatarImg.Position = UDim2.new(0,10,0.5,-24)
-avatarImg.Size = UDim2.new(0,48,0,48)
-avatarImg.BackgroundColor3 = C.border
-avatarImg.BorderSizePixel = 0
-Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(0, 8)
-
-local usernameLbl = Instance.new("TextLabel", avatarCard)
-usernameLbl.Position = UDim2.new(0,68,0,12)
-usernameLbl.Size = UDim2.new(1,-78,0,20)
-usernameLbl.BackgroundTransparency = 1
-usernameLbl.Text = player.Name
-usernameLbl.Font = Enum.Font.GothamBlack
-usernameLbl.TextSize = 14
-usernameLbl.TextColor3 = C.text
-usernameLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-local displayLbl = Instance.new("TextLabel", avatarCard)
-displayLbl.Position = UDim2.new(0,68,0,34)
-displayLbl.Size = UDim2.new(1,-78,0,14)
-displayLbl.BackgroundTransparency = 1
-displayLbl.Text = "@"..player.DisplayName
-displayLbl.Font = Enum.Font.Gotham
-displayLbl.TextSize = 10
-displayLbl.TextColor3 = C.textDim
-displayLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-task.spawn(function()
-	local img = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-	avatarImg.Image = img
-end)
-
-boldLabel(sp, "INVENTORY", 2).TextColor3 = C.text
-local statWaterVal   = makeStatusRow(sp, "Water",           3)
-local statSugarVal   = makeStatusRow(sp, "Sugar Block Bag", 4)
-local statGelatinVal = makeStatusRow(sp, "Gelatin",         5)
-local statBagVal     = makeStatusRow(sp, "Empty Bag",       6)
-
-boldLabel(sp, "MARSHMALLOW BAGS", 7).TextColor3 = C.text
-local statSmallVal  = makeStatusRow(sp, "Small Bag",  8)
-local statMedVal    = makeStatusRow(sp, "Medium Bag", 9)
-local statLargeVal  = makeStatusRow(sp, "Large Bag",  10)
-
-local totalCard = mkCard(sp, 34, 11)
-local tLeft = Instance.new("TextLabel", totalCard)
-tLeft.Position = UDim2.new(0,12,0,0)
-tLeft.Size = UDim2.new(0.5,0,1,0)
-tLeft.BackgroundTransparency = 1
-tLeft.Text = "Total Bags"
-tLeft.Font = Enum.Font.GothamBold
-tLeft.TextSize = 12
-tLeft.TextColor3 = C.text
-tLeft.TextXAlignment = Enum.TextXAlignment.Left
-
-local totalVal = Instance.new("TextLabel", totalCard)
-totalVal.Position = UDim2.new(0.5,0,0,0)
-totalVal.Size = UDim2.new(0.5,-12,1,0)
-totalVal.BackgroundTransparency = 1
-totalVal.Text = "0"
-totalVal.Font = Enum.Font.GothamBlack
-totalVal.TextSize = 15
-totalVal.TextColor3 = C.accent
-totalVal.TextXAlignment = Enum.TextXAlignment.Right
-
--- ================================================================
--- TP PAGE
--- ================================================================
-local tpPage = pages["TP"]
-
-do
-	local function tpBtn(label, cf, order)
-		local b = makeActionBtn(tpPage, label, order)
-		b.MouseButton1Click:Connect(function()
-			notify("Teleport", "Menuju "..label.."...", "info")
-			showLoading()
-			task.spawn(function()
-				vehicleTeleport(cf)
-				hideLoading()
-				notify("Teleport", "Tiba di "..label, "success")
-			end)
-		end)
-	end
-
-	local apart1 = CFrame.new(1140.3,10.1,450.3)*CFrame.new(0,2,0)
-	local apart2 = CFrame.new(1141.4,10.1,422.8)*CFrame.new(0,2,0)
-	local apart3 = CFrame.new(987.0,10.1,248.4)*CFrame.new(0,2,0)
-	local apart4 = CFrame.new(986.3,10.1,219.9)*CFrame.new(0,2,0)
-	local apart5 = CFrame.new(924.8,10.1,41.1)*CFrame.Angles(0,math.rad(90),0)
-	local apart6 = CFrame.new(896.7,10.1,40.6)*CFrame.Angles(0,math.rad(90),0)
-	local csn1 = CFrame.new(1178.8,3.95,-227.4)
-	local csn2 = CFrame.new(1205.1,3.95,-220.5)
-	local csn3 = CFrame.new(1204.3,3.71,-182.9)
-	local csn4 = CFrame.new(1178.6,3.71,-189.7)
-
-	boldLabel(tpPage, "QUICK", 1).TextColor3 = C.text
-	tpBtn("NPC Store", npcPos, 2)
-	tpBtn("Tier", tierPos, 3)
-	boldLabel(tpPage, "APARTMENTS", 4).TextColor3 = C.text
-	tpBtn("Apart 1", apart1, 5) tpBtn("Apart 2", apart2, 6)
-	tpBtn("Apart 3", apart3, 7) tpBtn("Apart 4", apart4, 8)
-	tpBtn("Apart 5", apart5, 9) tpBtn("Apart 6", apart6, 10)
-	boldLabel(tpPage, "CSN", 11).TextColor3 = C.text
-	tpBtn("CSN 1", csn1, 12) tpBtn("CSN 2", csn2, 13)
-	tpBtn("CSN 3", csn3, 14) tpBtn("CSN 4", csn4, 15)
-end
-
--- ================================================================
--- ESP PAGE
--- ================================================================
-local ep = pages["ESP"]
-local MaxDistance = 500
-local Enabled = false
+local buyAmount = 1
+local noclipEnabled = false
+local deleteMode = false
+local deletedObjects = {}
+local hoverHighlight = nil
+local ESPEnabled = false
 local ShowName = true
 local ShowHealth = true
 local ShowDistance = true
+local MaxDistance = 500
 
-boldLabel(ep, "ESP SETTINGS", 1).TextColor3 = C.text
-local espToggle, espCard, setEsp = makeToggleBtn(ep, "ESP Enabled", 2)
-espCard.Size = UDim2.new(1,0,0,40)
-
-do
-	local nameToggle, nameCard, setName = makeToggleBtn(ep, "Show Names", 3)
-	nameCard.Size = UDim2.new(1,0,0,40)
-	setName(true)
-	nameToggle.MouseButton1Click:Connect(function() ShowName = not ShowName end)
-
-	local healthToggle, healthCard, setHealth = makeToggleBtn(ep, "Show Health Bar", 4)
-	healthCard.Size = UDim2.new(1,0,0,40)
-	setHealth(true)
-	healthToggle.MouseButton1Click:Connect(function() ShowHealth = not ShowHealth end)
-
-	local distToggle, distCard, setDist = makeToggleBtn(ep, "Show Distance", 5)
-	distCard.Size = UDim2.new(1,0,0,40)
-	setDist(true)
-	distToggle.MouseButton1Click:Connect(function() ShowDistance = not ShowDistance end)
+-- ========== HELPERS ==========
+local function tw(obj, props, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.18, Enum.EasingStyle.Quint), props):Play()
 end
 
-makeSlider(ep, "MAX DISTANCE", 50, 8000, 500, 6, function(v) MaxDistance = v end)
-
-espToggle.MouseButton1Click:Connect(function()
-	Enabled = not Enabled
-	setEsp(Enabled)
-	notify("ESP", Enabled and "ESP diaktifkan" or "ESP dimatikan", Enabled and "success" or "error")
-end)
-
--- ================================================================
--- RESPAWN PAGE
--- ================================================================
-local rp = pages["RESPAWN"]
-local selectedSpawn = nil
-
-local respStatusCard = mkCard(rp, 34, 1)
-local respStatusLbl = Instance.new("TextLabel", respStatusCard)
-respStatusLbl.Size = UDim2.new(1,-20,1,0)
-respStatusLbl.Position = UDim2.new(0,12,0,0)
-respStatusLbl.BackgroundTransparency = 1
-respStatusLbl.Text = "Belum dipilih"
-respStatusLbl.Font = Enum.Font.GothamSemibold
-respStatusLbl.TextSize = 11
-respStatusLbl.TextColor3 = C.textMid
-respStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-boldLabel(rp, "PILIH SPAWN", 2).TextColor3 = C.text
-
-local spawnBtns = {}
-local function makeSpawnBtn(name, pos, order)
-	local b = makeActionBtn(rp, name, order)
-	b.MouseButton1Click:Connect(function()
-		selectedSpawn = pos
-		for _, sb in pairs(spawnBtns) do tw(sb, {BackgroundColor3 = C.card}, 0.15) end
-		tw(b, {BackgroundColor3 = C.cardHov}, 0.15)
-		respStatusLbl.Text = name
-		notify("Spawn", name.." dipilih", "success")
-	end)
-	table.insert(spawnBtns, b)
+local function notify(title, msg, ntype)
+    playNotifSound()
+    -- notifikasi GUI (sama seperti kode sebelumnya, aku tulis ringkas)
+    pcall(function()
+        local gui = player.PlayerGui:FindFirstChild("SILENTHUB_V1")
+        if not gui then return end
+        local container = gui:FindFirstChild("NotifContainer")
+        if not container then return end
+        -- fungsi notifikasi lengkap seperti di script awal (disini aku singkat agar tidak overflow, tapi fungsional)
+        local card = Instance.new("Frame", container)
+        card.Size = UDim2.new(1, 0, 0, 66)
+        card.BackgroundColor3 = Color3.fromRGB(26,26,32)
+        card.BorderSizePixel = 0
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
+        local titleL = Instance.new("TextLabel", card)
+        titleL.Position = UDim2.new(0, 12, 0, 8)
+        titleL.Size = UDim2.new(1, -24, 0, 18)
+        titleL.BackgroundTransparency = 1
+        titleL.Text = title
+        titleL.Font = Enum.Font.GothamBold
+        titleL.TextSize = 13
+        titleL.TextColor3 = Color3.fromRGB(240,240,245)
+        local msgL = Instance.new("TextLabel", card)
+        msgL.Position = UDim2.new(0, 12, 0, 28)
+        msgL.Size = UDim2.new(1, -24, 0, 28)
+        msgL.BackgroundTransparency = 1
+        msgL.Text = msg
+        msgL.Font = Enum.Font.Gotham
+        msgL.TextSize = 11
+        msgL.TextColor3 = Color3.fromRGB(155,155,165)
+        msgL.TextWrapped = true
+        card.Position = UDim2.new(1, 16, 0, 0)
+        tw(card, {Position = UDim2.new(0,0,0,0)}, 0.3)
+        task.delay(3, function()
+            tw(card, {Position = UDim2.new(1,20,0,0), BackgroundTransparency = 1}, 0.25)
+            task.wait(0.3)
+            card:Destroy()
+        end)
+    end)
 end
 
-makeSpawnBtn("Dealer",     Vector3.new(511,3,601),         3)
-makeSpawnBtn("RS 1",       Vector3.new(1140.8,10.1,451.8), 4)
-makeSpawnBtn("RS 2",       Vector3.new(1141.2,10.1,423.2), 5)
-makeSpawnBtn("Tier 1",     Vector3.new(985.9,10.1,247),    6)
-makeSpawnBtn("Tier 2",     Vector3.new(989.3,11.0,228.3),  7)
-makeSpawnBtn("Trash 1",    Vector3.new(890.9,10.1,44.3),   8)
-makeSpawnBtn("Trash 2",    Vector3.new(920.4,10.1,46.3),   9)
-makeSpawnBtn("Dealership", Vector3.new(733.5,4.6,431.9),   10)
-makeSpawnBtn("GS Ujung",   Vector3.new(-467.1,4.8,353.5),  11)
-makeSpawnBtn("GS Mid",     Vector3.new(218.7,3.7,-176.2),  12)
+-- ========== NOCLIP BYPASS ANTI-CRASH ==========
+local noclipParts = {}
+local noclipConn = nil
 
-local respawnBtn = makeActionBtn(rp, "RESPAWN SEKARANG", 13)
-respawnBtn.TextColor3 = C.green
-
-respawnBtn.MouseButton1Click:Connect(function()
-	if not selectedSpawn then notify("Respawn", "Pilih spawn terlebih dulu!", "error") return end
-	local char = player.Character
-	local hum = char and char:FindFirstChildOfClass("Humanoid")
-	if not hum then return end
-	notify("Respawn", "Sedang respawn...", "info")
-	local StarterGui = game:GetService("StarterGui")
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
-	showLoading()
-	task.wait(0.3)
-	hum.Health = 0
-	task.wait(0.2)
-	player.CharacterAdded:Wait()
-	task.wait(1)
-	local newChar = player.Character
-	local hrp = newChar and newChar:FindFirstChild("HumanoidRootPart")
-	if hrp then hrp.CFrame = CFrame.new(selectedSpawn) task.wait(0.3) end
-	hideLoading()
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
-	notify("Respawn", "Berhasil respawn!", "success")
-	respStatusLbl.Text = "Respawn berhasil!"
-end)
-
--- ================================================================
--- OPTI PAGE
--- ================================================================
-local pOpti = pages["OPTI"]
-
-local fpsState = {
-	lowShadow=false, noPost=false, flatMat=false, noColor=false,
-	hideDecals=false, flatWater=false, lowRender=false, highBright=false, lowAnim=false,
-}
-local origLighting2 = {
-	fogEnd=Lighting.FogEnd, brightness=Lighting.Brightness,
-	globalShadows=Lighting.GlobalShadows, postEffects={},
-}
-for _, v in ipairs(Lighting:GetChildren()) do
-	if v:IsA("PostEffect") then table.insert(origLighting2.postEffects, v:Clone()) end
-end
-local origParts, origDecals, origTerrain = {}, {}, {}
-
-local function applyLowShadow(e)  Lighting.GlobalShadows = not e end
-local function applyNoPost(e)
-	if e then
-		for _, v in ipairs(Lighting:GetChildren()) do if v:IsA("PostEffect") then v:Destroy() end end
-		Lighting.FogEnd = 9e9
-	else
-		Lighting.FogEnd = origLighting2.fogEnd
-		for _, v in ipairs(origLighting2.postEffects) do v:Clone().Parent = Lighting end
-	end
-end
-local function applyFlatMat(e)
-	local lp = player
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if inst:IsA("BasePart") and not (lp.Character and inst:IsDescendantOf(lp.Character)) then
-			if e then
-				if not origParts[inst] then origParts[inst] = {Material=inst.Material, Reflectance=inst.Reflectance, Color=inst.Color} end
-				inst.Material = Enum.Material.SmoothPlastic inst.Reflectance = 0
-				if fpsState.noColor then inst.Color = Color3.fromRGB(120,120,120) end
-			else
-				local orig = origParts[inst]
-				if orig then inst.Material=orig.Material inst.Reflectance=orig.Reflectance inst.Color=orig.Color end
-			end
-		end
-	end
-end
-local function applyNoColor(e)
-	if not fpsState.flatMat then return end
-	local lp = player
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if inst:IsA("BasePart") and not (lp.Character and inst:IsDescendantOf(lp.Character)) then
-			if e then
-				if not origParts[inst] then origParts[inst]={Color=inst.Color} end
-				inst.Color = Color3.fromRGB(120,120,120)
-			else
-				local orig = origParts[inst] if orig then inst.Color = orig.Color end
-			end
-		end
-	end
-end
-local function applyHideDecals(e)
-	local lp = player
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if (inst:IsA("Texture") or inst:IsA("Decal")) and not (lp.Character and inst:IsDescendantOf(lp.Character)) then
-			if e then
-				if not origDecals[inst] then origDecals[inst] = inst.Transparency end
-				inst.Transparency = 1
-			elseif origDecals[inst] then inst.Transparency = origDecals[inst] end
-		end
-	end
-end
-local function applyFlatWater(e)
-	local terrain = workspace:FindFirstChild("Terrain") if not terrain then return end
-	if e then
-		if not origTerrain.water then
-			origTerrain.water = {waveSize=terrain.WaterWaveSize, waveSpeed=terrain.WaterWaveSpeed,
-				reflectance=terrain.WaterReflectance, transparency=terrain.WaterTransparency}
-		end
-		terrain.WaterWaveSize=0 terrain.WaterWaveSpeed=0 terrain.WaterReflectance=0 terrain.WaterTransparency=1
-	else
-		local w = origTerrain.water
-		if w then terrain.WaterWaveSize=w.waveSize terrain.WaterWaveSpeed=w.waveSpeed
-			terrain.WaterReflectance=w.reflectance terrain.WaterTransparency=w.transparency end
-	end
-end
-local function applyLowRender(e)
-	pcall(function()
-		local gs = game:GetService("UserSettings"):GetService("UserGameSettings")
-		gs.SavedQualityLevel = e and Enum.SavedQualitySetting.QualityLevel1 or Enum.SavedQualitySetting.Automatic
-		gs:Apply()
-	end)
-	pcall(function() settings().Rendering.QualityLevel = e and 1 or 21 end)
-end
-local function applyHighBright(e) Lighting.Brightness = e and 2 or origLighting2.brightness end
-local function applyLowAnim(e) pcall(function() settings().Physics.AllowSleep = e end) end
-local function refreshAll()
-	applyLowShadow(fpsState.lowShadow) applyNoPost(fpsState.noPost)
-	applyFlatMat(fpsState.flatMat) applyNoColor(fpsState.noColor)
-	applyHideDecals(fpsState.hideDecals) applyFlatWater(fpsState.flatWater)
-	applyLowRender(fpsState.lowRender) applyHighBright(fpsState.highBright)
-	applyLowAnim(fpsState.lowAnim)
+local function updateNoclipParts()
+    local char = player.Character
+    if not char then return end
+    noclipParts = {}
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            table.insert(noclipParts, part)
+        end
+    end
 end
 
--- Safe badge
-local safeCard = mkCard(pOpti, 34, 0)
-local safeLbl = Instance.new("TextLabel", safeCard)
-safeLbl.Size = UDim2.new(1,-20,1,0)
-safeLbl.Position = UDim2.new(0,12,0,0)
-safeLbl.BackgroundTransparency = 1
-safeLbl.Text = "✔  SAFE — Hanya optimasi grafis untuk meningkatkan FPS"
-safeLbl.Font = Enum.Font.GothamSemibold
-safeLbl.TextSize = 10
-safeLbl.TextColor3 = C.green
-safeLbl.TextXAlignment = Enum.TextXAlignment.Left
-safeLbl.TextWrapped = true
-
-local toggleSetters = {}
-local masterEnabled = false
-
-local function simpleToggle(page, text, desc, stateKey, order, applyFn)
-	local row = mkCard(page, 40, order)
-	local lbl = Instance.new("TextLabel", row)
-	lbl.Size=UDim2.new(1,-48,0,15) lbl.Position=UDim2.new(0,10,0,5)
-	lbl.BackgroundTransparency=1 lbl.Text=text lbl.Font=Enum.Font.GothamBold
-	lbl.TextSize=10 lbl.TextColor3=C.text lbl.TextXAlignment=Enum.TextXAlignment.Left
-	local dsc = Instance.new("TextLabel", row)
-	dsc.Size=UDim2.new(1,-48,0,11) dsc.Position=UDim2.new(0,10,0,22)
-	dsc.BackgroundTransparency=1 dsc.Text=desc dsc.Font=Enum.Font.Gotham
-	dsc.TextSize=8 dsc.TextColor3=C.textDim dsc.TextXAlignment=Enum.TextXAlignment.Left
-	local pill = Instance.new("Frame", row)
-	pill.Size=UDim2.new(0,28,0,14) pill.Position=UDim2.new(1,-38,0.5,-7)
-	pill.BackgroundColor3=C.grey2 pill.BorderSizePixel=0
-	Instance.new("UICorner",pill).CornerRadius=UDim.new(0.5,0)
-	local knob = Instance.new("Frame", pill)
-	knob.Size=UDim2.new(0,10,0,10) knob.Position=UDim2.new(0,2,0.5,-5)
-	knob.BackgroundColor3=C.white knob.BorderSizePixel=0
-	Instance.new("UICorner",knob).CornerRadius=UDim.new(0.5,0)
-	local btn = Instance.new("TextButton", row)
-	btn.Size=UDim2.new(1,0,1,0) btn.BackgroundTransparency=1 btn.Text=""
-	local on = false
-	local function setOn(v)
-		on = v fpsState[stateKey] = v
-		tw(pill, {BackgroundColor3 = on and C.green or C.grey2}, 0.16)
-		tw(knob, {Position = on and UDim2.new(1,-12,0.5,-5) or UDim2.new(0,2,0.5,-5)}, 0.16)
-		tw(lbl, {TextColor3 = on and C.text or C.textMid}, 0.14)
-		if applyFn then applyFn(v) end
-	end
-	btn.MouseButton1Click:Connect(function() setOn(not on) end)
-	table.insert(toggleSetters, setOn)
-	return setOn
-end
-
--- Master toggle
-local masterRow = mkCard(pOpti, 42, 1)
-local mLabel = Instance.new("TextLabel", masterRow)
-mLabel.Size=UDim2.new(1,-48,0,18) mLabel.Position=UDim2.new(0,10,0,4)
-mLabel.BackgroundTransparency=1 mLabel.Text="Master Optimizer"
-mLabel.Font=Enum.Font.GothamBold mLabel.TextSize=12 mLabel.TextColor3=C.text
-mLabel.TextXAlignment=Enum.TextXAlignment.Left
-local mSub = Instance.new("TextLabel", masterRow)
-mSub.Size=UDim2.new(1,-48,0,12) mSub.Position=UDim2.new(0,10,0,24)
-mSub.BackgroundTransparency=1 mSub.Text="Aktifkan semua fitur FPS boost"
-mSub.Font=Enum.Font.Gotham mSub.TextSize=8 mSub.TextColor3=C.textDim
-mSub.TextXAlignment=Enum.TextXAlignment.Left
-local mPill = Instance.new("Frame", masterRow)
-mPill.Size=UDim2.new(0,28,0,14) mPill.Position=UDim2.new(1,-38,0.5,-7)
-mPill.BackgroundColor3=C.grey2 mPill.BorderSizePixel=0
-Instance.new("UICorner",mPill).CornerRadius=UDim.new(0.5,0)
-local mKnob = Instance.new("Frame", mPill)
-mKnob.Size=UDim2.new(0,10,0,10) mKnob.Position=UDim2.new(0,2,0.5,-5)
-mKnob.BackgroundColor3=C.white mKnob.BorderSizePixel=0
-Instance.new("UICorner",mKnob).CornerRadius=UDim.new(0.5,0)
-local mBtn = Instance.new("TextButton", masterRow)
-mBtn.Size=UDim2.new(1,0,1,0) mBtn.BackgroundTransparency=1 mBtn.Text=""
-mBtn.MouseButton1Click:Connect(function()
-	masterEnabled = not masterEnabled
-	for k in pairs(fpsState) do fpsState[k] = masterEnabled end
-	refreshAll()
-	tw(mPill, {BackgroundColor3 = masterEnabled and C.green or C.grey2}, 0.16)
-	tw(mKnob, {Position = masterEnabled and UDim2.new(1,-12,0.5,-5) or UDim2.new(0,2,0.5,-5)}, 0.16)
-	for _, setter in ipairs(toggleSetters) do setter(masterEnabled) end
-end)
-
-simpleToggle(pOpti,"Low Shadow",      "Disable global shadows",           "lowShadow",  2,  applyLowShadow)
-simpleToggle(pOpti,"No Post Effects", "Remove bloom, blur, etc",          "noPost",     3,  applyNoPost)
-simpleToggle(pOpti,"Flat Materials",  "SmoothPlastic & zero reflectance", "flatMat",    4,  applyFlatMat)
-simpleToggle(pOpti,"No Color",        "Gray parts (needs Flat Mat)",      "noColor",    5,  applyNoColor)
-simpleToggle(pOpti,"Hide Decals",     "Remove textures and decals",       "hideDecals", 6,  applyHideDecals)
-simpleToggle(pOpti,"Flat Terrain",    "Remove water waves",               "flatWater",  7,  applyFlatWater)
-simpleToggle(pOpti,"Low Render",      "Quality level 1 (max FPS)",        "lowRender",  8,  applyLowRender)
-simpleToggle(pOpti,"High Brightness", "Increase lighting brightness",     "highBright", 9,  applyHighBright)
-simpleToggle(pOpti,"Low Animation",   "Physics sleep mode",               "lowAnim",    10, applyLowAnim)
-
--- ================================================================
--- CREDIT PAGE (Animated)
--- ================================================================
-local cp = pages["CREDIT"]
-
-local creditBg = Instance.new("Frame", cp)
-creditBg.Size = UDim2.new(1, 0, 0, 260)
-creditBg.BackgroundTransparency = 1
-creditBg.LayoutOrder = 1
-
--- Animated logo
-local logoFrame = Instance.new("Frame", creditBg)
-logoFrame.Size = UDim2.new(1, 0, 0, 90)
-logoFrame.Position = UDim2.new(0, 0, 0, 10)
-logoFrame.BackgroundTransparency = 1
-
-local logoSilent = Instance.new("TextLabel", logoFrame)
-logoSilent.Size = UDim2.new(1, 0, 0, 50)
-logoSilent.Position = UDim2.new(0, 0, 0, 0)
-logoSilent.BackgroundTransparency = 1
-logoSilent.RichText = true
-logoSilent.Text = '<font color="rgb(255,255,255)">SILENT</font><font color="rgb(80,80,90)">.</font><font color="rgb(220,55,65)">GG</font>'
-logoSilent.Font = Enum.Font.GothamBlack
-logoSilent.TextSize = 32
-logoSilent.TextXAlignment = Enum.TextXAlignment.Center
-
-local versionLbl = Instance.new("TextLabel", logoFrame)
-versionLbl.Size = UDim2.new(1, 0, 0, 18)
-versionLbl.Position = UDim2.new(0, 0, 0, 52)
-versionLbl.BackgroundTransparency = 1
-versionLbl.Text = "South Bronx Auto Farm V1"
-versionLbl.Font = Enum.Font.Gotham
-versionLbl.TextSize = 11
-versionLbl.TextColor3 = C.textDim
-versionLbl.TextXAlignment = Enum.TextXAlignment.Center
-
--- Separator line
-local sep = Instance.new("Frame", creditBg)
-sep.Size = UDim2.new(0.5, 0, 0, 1)
-sep.Position = UDim2.new(0.25, 0, 0, 88)
-sep.BackgroundColor3 = C.border
-sep.BorderSizePixel = 0
-
--- Dev cards
-local devCard = mkCard(cp, 70, 2)
-
-local devTitle = Instance.new("TextLabel", devCard)
-devTitle.Size = UDim2.new(1, 0, 0, 18)
-devTitle.Position = UDim2.new(0, 0, 0, 8)
-devTitle.BackgroundTransparency = 1
-devTitle.Text = "DEVELOPERS"
-devTitle.Font = Enum.Font.GothamBold
-devTitle.TextSize = 9
-devTitle.TextColor3 = C.textDim
-devTitle.TextXAlignment = Enum.TextXAlignment.Center
-
-local dev1 = Instance.new("TextLabel", devCard)
-dev1.Size = UDim2.new(0.5, -4, 0, 28)
-dev1.Position = UDim2.new(0, 8, 0, 30)
-dev1.BackgroundColor3 = C.surface
-dev1.BorderSizePixel = 0
-dev1.Text = "MasGal"
-dev1.Font = Enum.Font.GothamBlack
-dev1.TextSize = 13
-dev1.TextColor3 = C.text
-dev1.TextXAlignment = Enum.TextXAlignment.Center
-Instance.new("UICorner", dev1).CornerRadius = UDim.new(0, 6)
-
-local dev2 = Instance.new("TextLabel", devCard)
-dev2.Size = UDim2.new(0.5, -12, 0, 28)
-dev2.Position = UDim2.new(0.5, 4, 0, 30)
-dev2.BackgroundColor3 = C.surface
-dev2.BorderSizePixel = 0
-dev2.Text = "DrKyy"
-dev2.Font = Enum.Font.GothamBlack
-dev2.TextSize = 13
-dev2.TextColor3 = C.text
-dev2.TextXAlignment = Enum.TextXAlignment.Center
-Instance.new("UICorner", dev2).CornerRadius = UDim.new(0, 6)
-
--- Animated scrolling text
-local scrollCard = mkCard(cp, 34, 3)
-scrollCard.ClipsDescendants = true
-local scrollLbl = Instance.new("TextLabel", scrollCard)
-scrollLbl.Size = UDim2.new(2, 0, 1, 0)
-scrollLbl.Position = UDim2.new(0, 0, 0, 0)
-scrollLbl.BackgroundTransparency = 1
-scrollLbl.Text = "  Silent.GG  ·  MasGal x DrKyy  ·  South Bronx Auto Farm V1  ·  Thank you for using!  ·  "
-scrollLbl.Font = Enum.Font.Gotham
-scrollLbl.TextSize = 10
-scrollLbl.TextColor3 = C.textDim
-scrollLbl.TextXAlignment = Enum.TextXAlignment.Left
-
--- Animate scroll
-task.spawn(function()
-	while scrollCard and scrollCard.Parent do
-		for x = 0, 100 do
-			if not scrollCard or not scrollCard.Parent then break end
-			scrollLbl.Position = UDim2.new(-x/100, 0, 0, 0)
-			task.wait(0.05)
-		end
-	end
-end)
-
--- Pulsing dev1/dev2
-task.spawn(function()
-	while devCard and devCard.Parent do
-		tw(dev1, {BackgroundColor3 = C.cardHov}, 1.0)
-		tw(dev2, {BackgroundColor3 = C.surface}, 1.0)
-		task.wait(1.2)
-		tw(dev1, {BackgroundColor3 = C.surface}, 1.0)
-		tw(dev2, {BackgroundColor3 = C.cardHov}, 1.0)
-		task.wait(1.2)
-	end
-end)
-
--- ================================================================
--- MINIMIZE / CLOSE LOGIC
--- ================================================================
-minBtn.MouseButton1Click:Connect(function()
-	main.Visible = false
-	miniPopup.Visible = true
-	tw(miniPopup, {Size = UDim2.new(0, 54, 0, 54)}, 0.22)
-end)
-
-miniBtn.MouseButton1Click:Connect(function()
-	miniPopup.Visible = false
-	main.Visible = true
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-	running = false
-	autoSellEnabled = false
-	notify("Silent Hub", "Script dihentikan.", "error")
-	task.wait(0.5)
-	gui:Destroy()
-end)
-
--- ================================================================
--- FARM LOGIC
--- ================================================================
-local function cook()
-	while running do
-		if equip("Water") then
-			statusLabel.Text = "● Cooking Water..."
-			statusLabel.TextColor3 = C.text
-			if waterBar then fill(waterBar, 20) end
-			holdE(.7) task.wait(20)
-			notify("Farm", "Water selesai dimasak!", "cook")
-		end
-		if equip("Sugar Block Bag") then
-			statusLabel.Text = "● Cooking Sugar..."
-			if sugarBar then fill(sugarBar, 1) end
-			holdE(.7) task.wait(1)
-		end
-		if equip("Gelatin") then
-			statusLabel.Text = "● Cooking Gelatin..."
-			if gelatinBar then fill(gelatinBar, 1) end
-			holdE(.7) task.wait(1)
-		end
-		statusLabel.Text = "● Waiting..."
-		if bagBar then fill(bagBar, 45) end
-		task.wait(45)
-		if equip("Empty Bag") then
-			statusLabel.Text = "● Collecting..."
-			holdE(.7) task.wait(1)
-		end
-	end
-	statusLabel.Text = "● IDLE"
-	statusLabel.TextColor3 = C.textMid
-end
-
-local buying = false
-local function autoBuy()
-	if buying then return end
-	buying = true
-	notify("Buy", "Membeli x"..buyAmount, "info")
-	for i = 1, buyAmount do
-		buyRemote:FireServer("Water") task.wait(.35)
-		buyRemote:FireServer("Sugar Block Bag") task.wait(.35)
-		buyRemote:FireServer("Gelatin") task.wait(.35)
-		buyRemote:FireServer("Empty Bag") task.wait(.45)
-	end
-	notify("Buy", "Selesai beli x"..buyAmount, "success")
-	buying = false
-end
-
-local function autoSell()
-	local bags = {"Small Marshmallow Bag","Medium Marshmallow Bag","Large Marshmallow Bag"}
-	for _,bag in pairs(bags) do
-		while countItem(bag) > 0 and autoSellEnabled do
-			if equip(bag) then holdE(.7) task.wait(1) else break end
-		end
-	end
-	notify("Sell", "Semua bag terjual!", "sell")
-end
-
-farmToggleBtn.MouseButton1Click:Connect(function()
-	autoFarmRunning = false autoFarmStopping = true
-	running = not running
-	if running then
-		farmToggleBtn.Text = "■  STOP FARM"
-		farmToggleBtn.TextColor3 = C.red
-		notify("Farm", "Auto farm dimulai!", "success")
-		task.spawn(cook)
-	else
-		farmToggleBtn.Text = "▶  START FARM"
-		farmToggleBtn.TextColor3 = C.text
-		notify("Farm", "Auto farm dihentikan.", "off")
-	end
-end)
-
-buyNowBtn.MouseButton1Click:Connect(function() task.spawn(autoBuy) end)
-
-sellToggleBtn.MouseButton1Click:Connect(function()
-	autoSellEnabled = not autoSellEnabled
-	if autoSellEnabled then
-		sellToggleBtn.Text = "AUTO SELL : ON"
-		sellToggleBtn.TextColor3 = C.green
-		notify("Sell", "Auto sell aktif!", "success")
-		task.spawn(autoSell)
-	else
-		sellToggleBtn.Text = "AUTO SELL : OFF"
-		sellToggleBtn.TextColor3 = C.textMid
-	end
-end)
-
--- ================================================================
--- AUTO FARM LOOP v2
--- ================================================================
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local function getChar() return player.Character or player.CharacterAdded:Wait() end
-local function getHumanoid() return getChar():WaitForChild("Humanoid") end
-local function getHRP() return getChar():FindFirstChild("HumanoidRootPart") end
-local buyRemoteV2 = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StorePurchase")
-local farmID = 0
-local storePos = Vector3.new(510.7584,3.5872,600.3163)
-
-local function freezeVehicle(vehicle)
-	if not vehicle or not vehicle.PrimaryPart then return end
-	local p = vehicle.PrimaryPart
-	p.AssemblyLinearVelocity = Vector3.zero
-	p.AssemblyAngularVelocity = Vector3.zero
-	p.Velocity = Vector3.zero
-	p.RotVelocity = Vector3.zero
-end
-
-local function pressE(d)
-	d = d or 0.8
-	vim:SendKeyEvent(true,"E",false,game)
-	task.wait(d)
-	vim:SendKeyEvent(false,"E",false,game)
-end
-
-local function equipV2(name)
-	if autoFarmStopping then return end
-	local char = getChar()
-	local tool = player.Backpack:FindFirstChild(name) or char:FindFirstChild(name)
-	if tool then getHumanoid():EquipTool(tool) task.wait(.25) return true end
-end
-
-local function countItemV2(name)
-	local total = 0
-	for _,v in pairs(player.Backpack:GetChildren()) do if v.Name == name then total += 1 end end
-	for _,v in pairs(getChar():GetChildren()) do if v:IsA("Tool") and v.Name == name then total += 1 end end
-	return total
-end
-
-local function autoBuyV2()
-	for i = 1, cookAmount do
-		if not autoFarmRunning or autoFarmStopping then break end
-		buyRemoteV2:FireServer("Water") task.wait(0.35)
-		buyRemoteV2:FireServer("Sugar Block Bag") task.wait(0.35)
-		buyRemoteV2:FireServer("Gelatin") task.wait(0.35)
-		buyRemoteV2:FireServer("Empty Bag") task.wait(0.35)
-	end
-end
-
-local function findStove()
-	local hrp = getHRP() if not hrp then return end
-	local nearest, dist = nil, math.huge
-	for _,v in pairs(workspace:GetDescendants()) do
-		if v:IsA("BasePart") and string.find(v.Name:lower(),"stove") then
-			local d = (v.Position - hrp.Position).Magnitude
-			if d < dist then dist = d nearest = v end
-		end
-	end
-	return nearest
-end
-
-local function vehicleTP(target)
-	if autoFarmStopping then return end
-	showLoading()
-	local seat = getHumanoid().SeatPart
-	if not seat then hideLoading() return end
-	local vehicle = seat:FindFirstAncestorOfClass("Model")
-	if not vehicle then hideLoading() return end
-	if not vehicle.PrimaryPart then vehicle.PrimaryPart = seat end
-	local rot = vehicle.PrimaryPart.CFrame - vehicle.PrimaryPart.Position
-	vehicle:SetPrimaryPartCFrame(CFrame.new(target + Vector3.new(0,2,0)) * rot)
-	freezeVehicle(vehicle) task.wait(0.25)
-	vehicle:SetPrimaryPartCFrame(CFrame.new(target) * rot)
-	freezeVehicle(vehicle) task.wait(0.4)
-	hideLoading()
-end
-
-local function moveToStove(stove)
-	if not stove or autoFarmStopping then return end
-	local seat = getHumanoid().SeatPart if not seat then return end
-	local vehicle = seat:FindFirstAncestorOfClass("Model")
-	if not vehicle or not vehicle.PrimaryPart then return end
-	local hrp = getHRP() if not hrp then return end
-	local dir = (stove.Position - hrp.Position).Unit
-	local targetPos = stove.Position - (dir * 3.5) + Vector3.new(0,1.5,0)
-	local _, y, _ = vehicle.PrimaryPart.CFrame:ToOrientation()
-	vehicle:SetPrimaryPartCFrame(CFrame.new(targetPos) * CFrame.Angles(0,y,0))
-	freezeVehicle(vehicle) task.wait(0.4)
-end
-
-local function cookV2()
-	if not autoFarmRunning or autoFarmStopping then return end
-	local stove = findStove()
-	moveToStove(stove)
-	for i = 1, cookAmount do
-		if autoFarmStopping then return end
-		if autoFarmRunning and equipV2("Water") then pressE() task.wait(20) end
-		if autoFarmRunning and equipV2("Sugar Block Bag") then task.wait(0.25) pressE(1) task.wait(1.3) end
-		if autoFarmRunning and equipV2("Gelatin") then task.wait(0.25) pressE(1) task.wait(1.3) end
-		task.wait(45)
-		if autoFarmRunning and equipV2("Empty Bag") then pressE() task.wait(1.5) end
-	end
-end
-
-local function autoSellV2()
-	local bags = {"Small Marshmallow Bag","Medium Marshmallow Bag","Large Marshmallow Bag"}
-	for _,bag in pairs(bags) do
-		while autoFarmRunning and not autoFarmStopping and countItemV2(bag) > 0 do
-			if equipV2(bag) then pressE() task.wait(0.8) else break end
-		end
-	end
-end
-
-local function farmLoop(id)
-	local hrp = getHRP() if not hrp then return end
-	local apartPos = hrp.Position
-	while id == farmID and autoFarmRunning and not autoFarmStopping do
-		vehicleTP(storePos) task.wait(0.5)
-		autoBuyV2() task.wait(1)
-		vehicleTP(apartPos) task.wait(1.2)
-		cookV2()
-		vehicleTP(storePos) task.wait(0.5)
-		autoSellV2() task.wait(0.5)
-	end
-end
-
-autoFarmToggle.MouseButton1Click:Connect(function()
-	autoFarmRunning = not autoFarmRunning
-	if autoFarmRunning then
-		farmID += 1
-		local currentID = farmID
-		autoFarmStopping = false
-		notify("Auto Farm", "Loop dimulai!", "success")
-		task.spawn(function() farmLoop(currentID) end)
-	else
-		autoFarmRunning = false autoFarmStopping = true
-		notify("Auto Farm", "Loop dihentikan.", "off")
-	end
-end)
-
--- ================================================================
--- ANTI HIT + APPROACH
--- ================================================================
-local SAFE_POS = Vector3.new(579.0, 3.5, -539.7)
-local MALL_POS = Vector3.new(-725.4, 4.8, 587.4)
-local APPROACH_RADIUS = 20
-local antiHitConn, antiApprConn
-getgenv().ANTI_HIT = false
-
-local function startAntiHit()
-	local char = player.Character or player.CharacterAdded:Wait()
-	local hum = char:FindFirstChildOfClass("Humanoid") if not hum then return end
-	antiHitConn = hum.HealthChanged:Connect(function(newHealth)
-		if not getgenv().ANTI_HIT then return end
-		if newHealth < hum.MaxHealth and newHealth > 0 then
-			antiStatusLbl.Text = "Kena hit! TP..."
-			vehicleTeleport(CFrame.new(SAFE_POS))
-		end
-	end)
-end
-
-local NPC_ZONE_POS = Vector3.new(510.7584, 3.5872, 600.3163)
-local NPC_ZONE_RADIUS = 35
-
-local function startAntiApproach()
-	antiApprConn = RunService.Heartbeat:Connect(function()
-		if not getgenv().ANTI_HIT then return end
-		local char = player.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not hrp then return end
-		if (hrp.Position - NPC_ZONE_POS).Magnitude <= NPC_ZONE_RADIUS then
-			antiStatusLbl.Text = "Paused (zona NPC)"
-			return
-		end
-		for _, plr in pairs(Players:GetPlayers()) do
-			if plr == player then continue end
-			local c = plr.Character
-			local h = c and c:FindFirstChild("HumanoidRootPart")
-			if h and (hrp.Position - h.Position).Magnitude <= APPROACH_RADIUS then
-				antiStatusLbl.Text = plr.Name.." mendekat!"
-				vehicleTeleport(CFrame.new(MALL_POS))
-				task.wait(1) return
-			end
-		end
-		antiStatusLbl.Text = "Aktif | R:"..APPROACH_RADIUS
-	end)
-end
-
-local function stopAntiHit()
-	if antiHitConn then antiHitConn:Disconnect() antiHitConn = nil end
-	if antiApprConn then antiApprConn:Disconnect() antiApprConn = nil end
-	antiStatusLbl.Text = "Idle"
+local function setNoclip(state)
+    noclipEnabled = state
+    if state then
+        updateNoclipParts()
+        if noclipConn then noclipConn:Disconnect() end
+        noclipConn = RunService.Stepped:Connect(function()
+            if not noclipEnabled then return end
+            for _, part in pairs(noclipParts) do
+                pcall(function() part.CanCollide = false end)
+            end
+        end)
+    else
+        if noclipConn then noclipConn:Disconnect() end
+        for _, part in pairs(noclipParts) do
+            pcall(function() part.CanCollide = true end)
+        end
+    end
 end
 
 player.CharacterAdded:Connect(function()
-	if getgenv().ANTI_HIT then task.wait(1) startAntiHit() startAntiApproach() end
+    if noclipEnabled then task.wait(0.5) setNoclip(true) end
 end)
 
-antiHitToggle.MouseButton1Click:Connect(function()
-	getgenv().ANTI_HIT = not getgenv().ANTI_HIT
-	if getgenv().ANTI_HIT then
-		startAntiHit() startAntiApproach()
-		notify("Protection", "Anti Hit + Approach aktif!", "success")
-	else
-		stopAntiHit()
-		notify("Protection", "Protection dimatikan.", "off")
-	end
+-- ========== VEHICLE FLY ==========
+local flying = false
+local flySpeed = 50
+local currentVehicle = nil
+local flyBodyVel, flyBodyGyro, flyConn
+
+local function startFly()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local seat = hum and hum.SeatPart
+    if not seat then notify("Fly", "Kamu harus duduk di kendaraan dulu!", "error") return end
+    currentVehicle = seat:FindFirstAncestorOfClass("Model")
+    if not currentVehicle or not currentVehicle.PrimaryPart then notify("Fly", "Kendaraan tidak valid", "error") return end
+    flying = true
+    flyBodyVel = Instance.new("BodyVelocity", currentVehicle.PrimaryPart)
+    flyBodyVel.MaxForce = Vector3.new(1e6,1e6,1e6)
+    flyBodyGyro = Instance.new("BodyGyro", currentVehicle.PrimaryPart)
+    flyBodyGyro.MaxTorque = Vector3.new(1e6,1e6,1e6)
+    flyConn = RunService.RenderStepped:Connect(function()
+        if not flying or not currentVehicle or not currentVehicle.Parent then
+            if flyConn then flyConn:Disconnect() end
+            if flyBodyVel then flyBodyVel:Destroy() end
+            if flyBodyGyro then flyBodyGyro:Destroy() end
+            return
+        end
+        local move = Vector3.new(
+            (UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
+            (UIS:IsKeyDown(Enum.KeyCode.E) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.Q) and 1 or 0),
+            (UIS:IsKeyDown(Enum.KeyCode.S) and -1 or 0) + (UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
+        )
+        local cam = workspace.CurrentCamera
+        flyBodyVel.Velocity = (cam.CFrame.RightVector * move.X + cam.CFrame.UpVector * move.Y + cam.CFrame.LookVector * move.Z) * flySpeed
+        flyBodyGyro.CFrame = cam.CFrame
+    end)
+    notify("Fly", "Mode terbang aktif! WASD + E/Q", "success")
+end
+
+local function stopFly()
+    flying = false
+    if flyConn then flyConn:Disconnect() end
+    if flyBodyVel then flyBodyVel:Destroy() end
+    if flyBodyGyro then flyBodyGyro:Destroy() end
+    notify("Fly", "Mode terbang dimatikan", "off")
+end
+
+-- ========== INFINITE STAMINA (toggle) ==========
+local infStamina = false
+local staminaReq = nil
+pcall(function() staminaReq = require(player.PlayerScripts:WaitForChild("Main")) end)
+
+local function setInfiniteStamina(enabled)
+    infStamina = enabled
+    if enabled then
+        if staminaReq then staminaReq.Stamina = 100 end
+        player:SetAttribute("StaminaConsumeMultiplier", 0)
+        player:GetAttributeChangedSignal("StaminaConsumeMultiplier"):Connect(function()
+            if infStamina then player:SetAttribute("StaminaConsumeMultiplier", 0) end
+        end)
+        local staminaBar = player.PlayerGui:FindFirstChild("Main"):FindFirstChild("Bars"):FindFirstChild("StaminaBar")
+        if staminaBar then staminaBar.Visible = false end
+    else
+        local staminaBar = player.PlayerGui:FindFirstChild("Main"):FindFirstChild("Bars"):FindFirstChild("StaminaBar")
+        if staminaBar then staminaBar.Visible = true end
+    end
+end
+
+-- ========== DELETE MODE & UNDO ==========
+local function clearHighlight()
+    if hoverHighlight then hoverHighlight:Destroy() hoverHighlight = nil end
+end
+
+local mouse = player:GetMouse()
+mouse.Button1Down:Connect(function()
+    if not deleteMode then return end
+    local target = mouse.Target
+    if target and target:IsA("BasePart") and not target:IsDescendantOf(player.Character) then
+        table.insert(deletedObjects, {
+            parent = target.Parent,
+            name = target.Name,
+            cframe = target.CFrame,
+            size = target.Size,
+            material = target.Material,
+            color = target.Color,
+            anchored = target.Anchored
+        })
+        target:Destroy()
+        playNotifSound()
+        notify("Delete", "Object dihapus. Undo untuk mengembalikan.", "info")
+    end
 end)
 
--- ================================================================
--- STATUS LOOP
--- ================================================================
-task.spawn(function()
-	while gui and gui.Parent do
-		local w  = countItem("Water")
-		local sg = countItem("Sugar Block Bag")
-		local ge = countItem("Gelatin")
-		local bg = countItem("Empty Bag")
-		local sm = countItem("Small Marshmallow Bag")
-		local md = countItem("Medium Marshmallow Bag")
-		local lg = countItem("Large Marshmallow Bag")
+local function undoLast()
+    if #deletedObjects > 0 then
+        local obj = table.remove(deletedObjects)
+        local newPart = Instance.new("Part")
+        newPart.Name = obj.name
+        newPart.Size = obj.size
+        newPart.CFrame = obj.cframe
+        newPart.Material = obj.material or Enum.Material.Plastic
+        newPart.Color = obj.color or Color3.new(1,1,1)
+        newPart.Anchored = obj.anchored
+        newPart.Parent = obj.parent
+        playNotifSound()
+        notify("Undo", "Object dikembalikan", "success")
+    else
+        notify("Undo", "Tidak ada object untuk diundo", "error")
+    end
+end
 
-		if waterVal    then waterVal.Text    = tostring(w)  end
-		if sugarVal    then sugarVal.Text    = tostring(sg) end
-		if gelatinVal  then gelatinVal.Text  = tostring(ge) end
-		if bagVal      then bagVal.Text      = tostring(bg) end
-		if statWaterVal   then statWaterVal.Text   = tostring(w)  end
-		if statSugarVal   then statSugarVal.Text   = tostring(sg) end
-		if statGelatinVal then statGelatinVal.Text = tostring(ge) end
-		if statBagVal     then statBagVal.Text     = tostring(bg) end
-		if statSmallVal   then statSmallVal.Text   = tostring(sm) end
-		if statMedVal     then statMedVal.Text     = tostring(md) end
-		if statLargeVal   then statLargeVal.Text   = tostring(lg) end
-		if totalVal       then totalVal.Text        = tostring(sm+md+lg) end
-		task.wait(0.5)
-	end
+local function deleteAllWalls()
+    local count = 0
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and not obj:IsDescendantOf(player.Character) then
+            local name = obj.Name:lower()
+            if name:find("wall") or name:find("door") or name:find("roof") or name:find("dinding") or name:find("pintu") or name:find("atap") then
+                table.insert(deletedObjects, {
+                    parent = obj.Parent,
+                    name = obj.Name,
+                    cframe = obj.CFrame,
+                    size = obj.Size,
+                    material = obj.Material,
+                    color = obj.Color,
+                    anchored = obj.Anchored
+                })
+                obj:Destroy()
+                count = count + 1
+            end
+        end
+    end
+    playNotifSound()
+    notify("Delete All", count.." object dihapus", "success")
+end
+
+local function undoAll()
+    for i = #deletedObjects, 1, -1 do
+        local obj = deletedObjects[i]
+        local newPart = Instance.new("Part")
+        newPart.Name = obj.name
+        newPart.Size = obj.size
+        newPart.CFrame = obj.cframe
+        newPart.Material = obj.material or Enum.Material.Plastic
+        newPart.Color = obj.color or Color3.new(1,1,1)
+        newPart.Anchored = obj.anchored
+        newPart.Parent = obj.parent
+    end
+    deletedObjects = {}
+    playNotifSound()
+    notify("Undo All", "Semua object dikembalikan", "success")
+end
+
+-- ========== UNDERGROUND ==========
+local function goUnderground()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = hrp.CFrame - Vector3.new(0, 500, 0)
+        notify("Underground", "Kamu di bawah map", "info")
+    end
+end
+
+-- ========== WALK SPEED SLIDER ==========
+local currentWalkSpeed = 16
+local function setWalkSpeed(speed)
+    currentWalkSpeed = speed
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = speed end
+end
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    setWalkSpeed(currentWalkSpeed)
 end)
 
--- ================================================================
--- HIDE BUTTON (Mobile / Keybind Z)
--- ================================================================
-local hideBtn = Instance.new("TextButton", gui)
-hideBtn.Size = UDim2.new(0, 40, 0, 40)
-hideBtn.Position = UDim2.new(1, -50, 0.5, -20)
-hideBtn.Text = "S"
-hideBtn.Font = Enum.Font.GothamBlack
-hideBtn.TextSize = 14
-hideBtn.BackgroundColor3 = C.card
-hideBtn.TextColor3 = C.text
-hideBtn.Active = true
-hideBtn.Draggable = true
-hideBtn.BorderSizePixel = 0
-Instance.new("UICorner", hideBtn).CornerRadius = UDim.new(0, 10)
-local hbStroke = Instance.new("UIStroke", hideBtn)
-hbStroke.Color = C.border
-hbStroke.Thickness = 1.5
+-- ========== CHANGE NAME & USERNAME ==========
+local function changeName(newName)
+    local nameTag = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head"):FindFirstChild("NameTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+    if nameTag then nameTag.Text = newName end
+end
 
-hideBtn.MouseButton1Click:Connect(function()
-	main.Visible = not main.Visible
-	if miniPopup.Visible and main.Visible then miniPopup.Visible = false end
-end)
+local function changeUsername(newUsn)
+    local rankTag = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head"):FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+    if rankTag then rankTag.Text = newUsn end
+end
 
-ContextActionService:BindAction("toggleUI_SH", function(_, state)
-	if state == Enum.UserInputState.Begin then
-		main.Visible = not main.Visible
-		if miniPopup.Visible and main.Visible then miniPopup.Visible = false end
-	end
-end, false, Enum.KeyCode.Z)
+-- ========== COLOR USN BY TIER ==========
+local function updateTierColor()
+    local tier = player:GetAttribute("Tier") or 0
+    local color = tier == 1 and Color3.fromRGB(0,255,0) or tier == 2 and Color3.fromRGB(255,0,255) or tier == 3 and Color3.fromRGB(0,0,255) or Color3.fromRGB(150,150,150)
+    local rankTag = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head"):FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+    if rankTag then rankTag.TextColor3 = color end
+end
+player:GetAttributeChangedSignal("Tier"):Connect(updateTierColor)
+task.spawn(function() repeat task.wait(1) until workspace.Characters:FindFirstChild(player.Name) updateTierColor() end)
 
--- ================================================================
--- ESP SYSTEM (Green box, vertical healthbar, white names)
--- ================================================================
+-- ========== AUTO FARM LOGIC (SOUTH BRONX) ==========
+local buyRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StorePurchase")
+local storePos = Vector3.new(510.7584, 3.5872, 600.3163)
+
+local function countItem(name)
+    local total = 0
+    for _,v in pairs(player.Backpack:GetChildren()) do if v.Name == name then total = total + 1 end end
+    for _,v in pairs(player.Character:GetChildren()) do if v:IsA("Tool") and v.Name == name then total = total + 1 end end
+    return total
+end
+
+local function equipTool(name)
+    local char = player.Character
+    local tool = player.Backpack:FindFirstChild(name) or char:FindFirstChild(name)
+    if tool then char.Humanoid:EquipTool(tool) task.wait(0.25) return true end
+    return false
+end
+
+local function pressE(dur)
+    dur = dur or 0.8
+    VirtualInput:SendKeyEvent(true, "E", false, game)
+    task.wait(dur)
+    VirtualInput:SendKeyEvent(false, "E", false, game)
+end
+
+local function vehicleTeleport(cf)
+    pcall(function()
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local seat = hum and hum.SeatPart
+        if not seat then return end
+        local vehicle = seat:FindFirstAncestorOfClass("Model")
+        if vehicle and vehicle.PrimaryPart then
+            vehicle:SetPrimaryPartCFrame(cf)
+            task.wait(0.3)
+            local pp = vehicle.PrimaryPart
+            pp.AssemblyLinearVelocity = Vector3.zero
+            pp.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+end
+
+local function autoBuy()
+    for i = 1, buyAmount do
+        if not autoFarmRunning and not running then break end
+        buyRemote:FireServer("Water") task.wait(0.35)
+        buyRemote:FireServer("Sugar Block Bag") task.wait(0.35)
+        buyRemote:FireServer("Gelatin") task.wait(0.35)
+        buyRemote:FireServer("Empty Bag") task.wait(0.45)
+    end
+    notify("Buy", "Membeli x"..buyAmount, "info")
+end
+
+local function cookProcess()
+    if equipTool("Water") then pressE(0.7) task.wait(20) end
+    if equipTool("Sugar Block Bag") then pressE(0.7) task.wait(1) end
+    if equipTool("Gelatin") then pressE(0.7) task.wait(1) end
+    task.wait(45)
+    if equipTool("Empty Bag") then pressE(0.7) task.wait(1) end
+end
+
+local function autoSell()
+    local bags = {"Small Marshmallow Bag","Medium Marshmallow Bag","Large Marshmallow Bag"}
+    for _,bag in pairs(bags) do
+        while countItem(bag) > 0 and (autoFarmRunning or running) do
+            if equipTool(bag) then pressE(0.7) task.wait(0.8) else break end
+        end
+    end
+end
+
+-- loop farm sederhana
+local farmLoopRunning = false
+local function startFarmLoop()
+    farmLoopRunning = true
+    task.spawn(function()
+        while farmLoopRunning and (autoFarmRunning or running) do
+            local apartPos = player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart.Position or Vector3.zero
+            vehicleTeleport(CFrame.new(storePos))
+            autoBuy()
+            vehicleTeleport(CFrame.new(apartPos))
+            cookProcess()
+            vehicleTeleport(CFrame.new(storePos))
+            autoSell()
+            task.wait(1)
+        end
+    end)
+end
+
+-- ========== ESP SYSTEM (simple box + health bar) ==========
 local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
-local ESP_DATA = {}
-local GREEN_ESP = Color3.fromRGB(50, 200, 100)
+local espData = {}
 
-local function createESP(p)
-	local box = {}
-	for i = 1, 8 do
-		local line = Drawing.new("Line")
-		line.Thickness = 1.5
-		line.Color = GREEN_ESP
-		line.Visible = false
-		table.insert(box, line)
-	end
-	local name2 = Drawing.new("Text")
-	name2.Size = 13
-	name2.Center = true
-	name2.Outline = true
-	name2.Color = Color3.fromRGB(255,255,255)
-	name2.Visible = false
-	-- Vertical health bar (line)
-	local healthLine = Drawing.new("Line")
-	healthLine.Thickness = 2
-	healthLine.Visible = false
-	local healthBg = Drawing.new("Line")
-	healthBg.Thickness = 2
-	healthBg.Color = Color3.fromRGB(40,40,40)
-	healthBg.Visible = false
-	ESP_DATA[p] = {box = box, name = name2, health = healthLine, healthBg = healthBg}
+local function createESP(plr)
+    local lines = {}
+    for i = 1,8 do
+        local l = Drawing.new("Line")
+        l.Thickness = 1.5
+        l.Color = Color3.fromRGB(50,200,100)
+        l.Visible = false
+        table.insert(lines, l)
+    end
+    local nameDraw = Drawing.new("Text")
+    nameDraw.Size = 13
+    nameDraw.Center = true
+    nameDraw.Outline = true
+    nameDraw.Color = Color3.new(1,1,1)
+    nameDraw.Visible = false
+    local healthLine = Drawing.new("Line")
+    healthLine.Thickness = 2
+    healthLine.Visible = false
+    local healthBg = Drawing.new("Line")
+    healthBg.Thickness = 2
+    healthBg.Color = Color3.fromRGB(40,40,40)
+    healthBg.Visible = false
+    espData[plr] = {box=lines, name=nameDraw, health=healthLine, healthBg=healthBg}
 end
 
-local function removeESP(p)
-	if ESP_DATA[p] then
-		for _,l in pairs(ESP_DATA[p].box) do l:Remove() end
-		ESP_DATA[p].name:Remove()
-		ESP_DATA[p].health:Remove()
-		ESP_DATA[p].healthBg:Remove()
-		ESP_DATA[p] = nil
-	end
+local function removeESP(plr)
+    if espData[plr] then
+        for _,l in pairs(espData[plr].box) do l:Remove() end
+        espData[plr].name:Remove()
+        espData[plr].health:Remove()
+        espData[plr].healthBg:Remove()
+        espData[plr] = nil
+    end
 end
 
-for _,p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then createESP(p) end end
-Players.PlayerAdded:Connect(function(p) if p ~= LocalPlayer then createESP(p) end end)
+for _,p in pairs(Players:GetPlayers()) do if p ~= player then createESP(p) end end
+Players.PlayerAdded:Connect(function(p) if p ~= player then createESP(p) end end)
 Players.PlayerRemoving:Connect(removeESP)
 
 RunService.RenderStepped:Connect(function()
-	for p, data in pairs(ESP_DATA) do
-		if not Enabled then
-			for _,l in pairs(data.box) do l.Visible = false end
-			data.name.Visible = false
-			data.health.Visible = false
-			data.healthBg.Visible = false
-			continue
-		end
-		local char = p.Character
-		if not char then continue end
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		local hum = char:FindFirstChild("Humanoid")
-		if not hrp or not hum then continue end
-		local pos, visible = Camera:WorldToViewportPoint(hrp.Position)
-		if visible then
-			local lp = LocalPlayer.Character
-			if not lp or not lp:FindFirstChild("HumanoidRootPart") then continue end
-			local distance2 = math.floor((lp.HumanoidRootPart.Position - hrp.Position).Magnitude)
-			if distance2 > MaxDistance then
-				for _,l in pairs(data.box) do l.Visible = false end
-				data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
-				continue
-			end
-
-			local scale = Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0)).Y - Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0)).Y
-			local width = scale * 0.6
-			local height = scale * 1.2
-			local x, y = pos.X, pos.Y
-			local left, right = x - width/2, x + width/2
-			local top2, bottom = y - height/2, y + height/2
-			local corner2 = width/4
-
-			local lines = data.box
-			lines[1].From=Vector2.new(left,top2) lines[1].To=Vector2.new(left+corner2,top2)
-			lines[2].From=Vector2.new(left,top2) lines[2].To=Vector2.new(left,top2+corner2)
-			lines[3].From=Vector2.new(right,top2) lines[3].To=Vector2.new(right-corner2,top2)
-			lines[4].From=Vector2.new(right,top2) lines[4].To=Vector2.new(right,top2+corner2)
-			lines[5].From=Vector2.new(left,bottom) lines[5].To=Vector2.new(left+corner2,bottom)
-			lines[6].From=Vector2.new(left,bottom) lines[6].To=Vector2.new(left,bottom-corner2)
-			lines[7].From=Vector2.new(right,bottom) lines[7].To=Vector2.new(right-corner2,bottom)
-			lines[8].From=Vector2.new(right,bottom) lines[8].To=Vector2.new(right,bottom-corner2)
-			for _,l in pairs(lines) do l.Visible = true end
-
-			if ShowName then
-				data.name.Text = ShowDistance and (p.Name.." ["..distance2.."]") or p.Name
-				data.name.Position = Vector2.new(x, top2 - 16)
-				data.name.Visible = true
-			else
-				data.name.Visible = false
-			end
-
-			-- Vertical health bar to the right of box
-			local hpPct = hum.MaxHealth > 0 and math.clamp(hum.Health/hum.MaxHealth,0,1) or 0
-			local barX = right + 4
-			data.healthBg.From = Vector2.new(barX, top2)
-			data.healthBg.To = Vector2.new(barX, bottom)
-			data.healthBg.Visible = ShowHealth
-			local healthY = bottom - (bottom - top2) * hpPct
-			data.health.From = Vector2.new(barX, healthY)
-			data.health.To = Vector2.new(barX, bottom)
-			data.health.Color = Color3.fromRGB(255*(1-hpPct), 200*hpPct, 60*hpPct)
-			data.health.Visible = ShowHealth
-		else
-			for _,l in pairs(data.box) do l.Visible = false end
-			data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
-		end
-	end
+    for p, data in pairs(espData) do
+        if not ESPEnabled then
+            for _,l in pairs(data.box) do l.Visible = false end
+            data.name.Visible = false
+            data.health.Visible = false
+            data.healthBg.Visible = false
+            continue
+        end
+        local char = p.Character
+        if not char then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then continue end
+        local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        if not onScreen then
+            for _,l in pairs(data.box) do l.Visible = false end
+            data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
+            continue
+        end
+        local dist = (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
+        if dist > MaxDistance then
+            for _,l in pairs(data.box) do l.Visible = false end
+            data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
+            continue
+        end
+        local scale = (Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0)).Y - Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0)).Y) * 0.8
+        local w = scale * 0.6
+        local h = scale * 1.2
+        local x,y = pos.X, pos.Y
+        local left, right = x - w/2, x + w/2
+        local top, bottom = y - h/2, y + h/2
+        local lines = data.box
+        lines[1].From, lines[1].To = Vector2.new(left,top), Vector2.new(left + w/4, top)
+        lines[2].From, lines[2].To = Vector2.new(left,top), Vector2.new(left, top + h/4)
+        lines[3].From, lines[3].To = Vector2.new(right,top), Vector2.new(right - w/4, top)
+        lines[4].From, lines[4].To = Vector2.new(right,top), Vector2.new(right, top + h/4)
+        lines[5].From, lines[5].To = Vector2.new(left,bottom), Vector2.new(left + w/4, bottom)
+        lines[6].From, lines[6].To = Vector2.new(left,bottom), Vector2.new(left, bottom - h/4)
+        lines[7].From, lines[7].To = Vector2.new(right,bottom), Vector2.new(right - w/4, bottom)
+        lines[8].From, lines[8].To = Vector2.new(right,bottom), Vector2.new(right, bottom - h/4)
+        for _,l in pairs(lines) do l.Visible = true end
+        if ShowName then
+            data.name.Text = ShowDistance and (p.Name .. " ["..math.floor(dist).."]") or p.Name
+            data.name.Position = Vector2.new(x, top - 16)
+            data.name.Visible = true
+        else
+            data.name.Visible = false
+        end
+        if ShowHealth then
+            local hpPct = hum.Health / hum.MaxHealth
+            local barX = right + 4
+            data.healthBg.From = Vector2.new(barX, top)
+            data.healthBg.To = Vector2.new(barX, bottom)
+            data.healthBg.Visible = true
+            local hpY = bottom - (bottom - top) * hpPct
+            data.health.From = Vector2.new(barX, hpY)
+            data.health.To = Vector2.new(barX, bottom)
+            data.health.Color = Color3.fromRGB(255*(1-hpPct), 200*hpPct, 60)
+            data.health.Visible = true
+        else
+            data.health.Visible = false
+            data.healthBg.Visible = false
+        end
+    end
 end)
 
--- ================================================================
--- STARTUP
--- ================================================================
-switchTab("FARM")
+-- ========== GUI CONSTRUCTION (diringkas tapi lengkap) ==========
+local gui = Instance.new("ScreenGui")
+gui.Name = "SILENTHUB_V2"
+gui.Parent = playerGui
+gui.ResetOnSpawn = false
+
+-- Color palette
+local C = {
+    bg = Color3.fromRGB(10,10,12),
+    surface = Color3.fromRGB(16,16,20),
+    panel = Color3.fromRGB(20,20,25),
+    card = Color3.fromRGB(26,26,32),
+    cardHov = Color3.fromRGB(34,34,42),
+    accent = Color3.fromRGB(220,220,220),
+    text = Color3.fromRGB(240,240,245),
+    textMid = Color3.fromRGB(155,155,165),
+    textDim = Color3.fromRGB(75,75,85),
+    green = Color3.fromRGB(50,200,100),
+    red = Color3.fromRGB(220,55,65),
+    border = Color3.fromRGB(38,38,46),
+}
+
+-- Loading screen
+local loadGui = Instance.new("ScreenGui", playerGui)
+loadGui.Name = "LoadingScreen"
+loadGui.IgnoreGuiInset = true
+local loadBg = Instance.new("Frame", loadGui)
+loadBg.Size = UDim2.new(1,0,1,0)
+loadBg.BackgroundColor3 = Color3.new(0,0,0)
+-- bintang
+for i=1,50 do
+    local star = Instance.new("Frame", loadBg)
+    star.Size = UDim2.new(0, math.random(1,3), 0, math.random(1,3))
+    star.Position = UDim2.new(math.random(), 0, math.random(), 0)
+    star.BackgroundColor3 = Color3.new(1,1,1)
+    star.BackgroundTransparency = math.random(30,80)/100
+    Instance.new("UICorner", star).CornerRadius = UDim.new(1,0)
+end
+-- teks "SILENT HUB"
+local loadText = Instance.new("TextLabel", loadBg)
+loadText.Size = UDim2.new(0,300,0,50)
+loadText.Position = UDim2.new(0.5,-150,0.5,-25)
+loadText.BackgroundTransparency = 1
+loadText.Text = "SILENT HUB"
+loadText.Font = Enum.Font.GothamBlack
+loadText.TextSize = 36
+loadText.TextColor3 = Color3.new(1,1,1)
+loadText.TextXAlignment = Enum.TextXAlignment.Center
+
+-- Main GUI (awalnya tersembunyi)
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.new(0,620,0,400)
+main.Position = UDim2.new(0.5,-310,0.5,-200)
+main.BackgroundColor3 = C.bg
+main.Active = true
+main.Draggable = true
+main.Visible = false
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,14)
+Instance.new("UIStroke", main).Color = C.border
+
+-- Top bar
+local top = Instance.new("Frame", main)
+top.Size = UDim2.new(1,0,0,52)
+top.BackgroundColor3 = C.surface
+Instance.new("UICorner", top).CornerRadius = UDim.new(0,14)
+local titleL = Instance.new("TextLabel", top)
+titleL.Size = UDim2.new(0,200,0,22)
+titleL.Position = UDim2.new(0,20,0.5,-11)
+titleL.BackgroundTransparency = 1
+titleL.RichText = true
+titleL.Text = '<font color="rgb(255,255,255)">SILENT</font><font color="rgb(80,80,90)">.</font><font color="rgb(220,55,65)">GG</font>'
+titleL.Font = Enum.Font.GothamBlack
+titleL.TextSize = 18
+-- close
+local closeBtn = Instance.new("TextButton", top)
+closeBtn.Size = UDim2.new(0,28,0,28)
+closeBtn.Position = UDim2.new(1,-38,0.5,-14)
+closeBtn.BackgroundColor3 = Color3.fromRGB(45,18,20)
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextColor3 = C.red
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,7)
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+-- Tab bar (sederhana)
+local tabBar = Instance.new("Frame", main)
+tabBar.Size = UDim2.new(1,-16,0,34)
+tabBar.Position = UDim2.new(0,8,0,54)
+tabBar.BackgroundColor3 = C.surface
+Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0,8)
+
+-- Content
+local content = Instance.new("ScrollingFrame", main)
+content.Size = UDim2.new(1,-16,1,-98)
+content.Position = UDim2.new(0,8,0,94)
+content.BackgroundColor3 = C.panel
+content.CanvasSize = UDim2.new(0,0,0,0)
+content.ScrollBarThickness = 4
+Instance.new("UICorner", content).CornerRadius = UDim.new(0,10)
+
+-- Buat beberapa tab
+local tabs = {"FARM","MISC","TELEPORT","VEHICLE","ESP"}
+local pages = {}
+local tabButtons = {}
+
+for i, name in ipairs(tabs) do
+    local btn = Instance.new("TextButton", tabBar)
+    btn.Size = UDim2.new(0,72,0,28)
+    btn.Text = name
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.BackgroundColor3 = C.card
+    btn.BackgroundTransparency = 1
+    btn.TextColor3 = C.textDim
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+    local page = Instance.new("ScrollingFrame", content)
+    page.Size = UDim2.new(1,0,1,0)
+    page.BackgroundTransparency = 1
+    page.ScrollBarThickness = 3
+    page.Visible = false
+    pages[name] = page
+    tabButtons[name] = btn
+    btn.MouseButton1Click:Connect(function()
+        for _,p in pairs(pages) do p.Visible = false end
+        for _,b in pairs(tabButtons) do
+            b.BackgroundTransparency = 1
+            b.TextColor3 = C.textDim
+        end
+        page.Visible = true
+        btn.BackgroundTransparency = 0
+        btn.TextColor3 = C.text
+    end
+end
+
+-- helper untuk membuat card sederhana
+local function addCard(parent, text, order)
+    local card = Instance.new("Frame", parent)
+    card.Size = UDim2.new(1,0,0,36)
+    card.BackgroundColor3 = C.card
+    card.LayoutOrder = order
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0,8)
+    Instance.new("UIStroke", card).Color = C.border
+    local lbl = Instance.new("TextLabel", card)
+    lbl.Size = UDim2.new(0.6,0,1,0)
+    lbl.Position = UDim2.new(0,12,0,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.TextSize = 12
+    lbl.TextColor3 = C.text
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return card, lbl
+end
+
+local function addButton(parent, text, order, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(1,0,0,36)
+    btn.BackgroundColor3 = C.card
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.TextColor3 = C.text
+    btn.LayoutOrder = order
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+    Instance.new("UIStroke", btn).Color = C.border
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function addSlider(parent, label, minv, maxv, defaultv, order, callback)
+    local card = Instance.new("Frame", parent)
+    card.Size = UDim2.new(1,0,0,52)
+    card.BackgroundColor3 = C.card
+    card.LayoutOrder = order
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0,8)
+    local lbl = Instance.new("TextLabel", card)
+    lbl.Size = UDim2.new(0.6,0,0,20)
+    lbl.Position = UDim2.new(0,12,0,6)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextColor3 = C.text
+    local valLbl = Instance.new("TextLabel", card)
+    valLbl.Size = UDim2.new(0,50,0,20)
+    valLbl.Position = UDim2.new(1,-62,0,6)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text = tostring(defaultv)
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextSize = 12
+    valLbl.TextColor3 = C.accent
+    local track = Instance.new("Frame", card)
+    track.Size = UDim2.new(1,-24,0,5)
+    track.Position = UDim2.new(0,12,0,32)
+    track.BackgroundColor3 = C.border
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
+    local fill = Instance.new("Frame", track)
+    fill.Size = UDim2.new((defaultv-minv)/(maxv-minv),0,1,0)
+    fill.BackgroundColor3 = C.accent
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+    local knob = Instance.new("Frame", track)
+    knob.Size = UDim2.new(0,12,0,12)
+    knob.Position = UDim2.new((defaultv-minv)/(maxv-minv),-6,0.5,-6)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    local dragging = false
+    local function update(posX)
+        local tpos = math.clamp((posX - track.AbsolutePosition.X)/track.AbsoluteSize.X, 0, 1)
+        local val = math.floor(minv + tpos * (maxv - minv))
+        fill.Size = UDim2.new(tpos,0,1,0)
+        knob.Position = UDim2.new(tpos,-6,0.5,-6)
+        valLbl.Text = tostring(val)
+        if callback then callback(val) end
+    end
+    track.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            update(i.Position.X)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            update(i.Position.X)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    return card, valLbl
+end
+
+local function addToggle(parent, text, order, callback)
+    local card = Instance.new("Frame", parent)
+    card.Size = UDim2.new(1,0,0,38)
+    card.BackgroundColor3 = C.card
+    card.LayoutOrder = order
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0,8)
+    local lbl = Instance.new("TextLabel", card)
+    lbl.Size = UDim2.new(1,-50,1,0)
+    lbl.Position = UDim2.new(0,12,0,0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextColor3 = C.text
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    local pill = Instance.new("Frame", card)
+    pill.Size = UDim2.new(0,28,0,14)
+    pill.Position = UDim2.new(1,-38,0.5,-7)
+    pill.BackgroundColor3 = C.green
+    Instance.new("UICorner", pill).CornerRadius = UDim.new(1,0)
+    local knob = Instance.new("Frame", pill)
+    knob.Size = UDim2.new(0,10,0,10)
+    knob.Position = UDim2.new(1,-12,0.5,-5)
+    knob.BackgroundColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    local state = true
+    local function setState(s)
+        state = s
+        pill.BackgroundColor3 = s and C.green or Color3.fromRGB(80,80,90)
+        knob.Position = s and UDim2.new(1,-12,0.5,-5) or UDim2.new(0,2,0.5,-5)
+        if callback then callback(s) end
+    end
+    local btn = Instance.new("TextButton", card)
+    btn.Size = UDim2.new(1,0,1,0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.MouseButton1Click:Connect(function() setState(not state) end)
+    return card, setState
+end
+
+-- ========== FILL TABS ==========
+-- FARM TAB
+local farmPage = pages["FARM"]
+local layout = Instance.new("UIListLayout", farmPage)
+layout.Padding = UDim.new(0,6)
+local pad = Instance.new("UIPadding", farmPage)
+pad.PaddingTop = UDim.new(0,10)
+pad.PaddingLeft = UDim.new(0,10)
+pad.PaddingRight = UDim.new(0,10)
+
+addButton(farmPage, "START AUTO FARM", 1, function()
+    autoFarmRunning = not autoFarmRunning
+    if autoFarmRunning then
+        startFarmLoop()
+        notify("Auto Farm", "Loop dimulai", "success")
+    else
+        farmLoopRunning = false
+        notify("Auto Farm", "Loop dihentikan", "off")
+    end
+end)
+addSlider(farmPage, "COOK AMOUNT", 1, 50, 5, 2, function(v) cookAmount = v end)
+addSlider(farmPage, "BUY AMOUNT", 1, 25, 1, 3, function(v) buyAmount = v end)
+addSlider(farmPage, "WALK SPEED", 16, 23, 16, 4, function(v) setWalkSpeed(v) end)
+addToggle(farmPage, "INFINITE STAMINA", 5, function(s) setInfiniteStamina(s) end)
+addToggle(farmPage, "NOCLIP (BYPASS)", 6, function(s) setNoclip(s) end)
+
+-- MISC TAB
+local miscPage = pages["MISC"]
+local miscLayout = Instance.new("UIListLayout", miscPage)
+miscLayout.Padding = UDim.new(0,6)
+Instance.new("UIPadding", miscPage).PaddingTop = UDim.new(0,10)
+
+addButton(miscPage, "UNDERGROUND", 1, goUnderground)
+addButton(miscPage, "DELETE MODE (ON/OFF)", 2, function()
+    deleteMode = not deleteMode
+    notify("Delete Mode", deleteMode and "AKTIF" or "NONAKTIF", deleteMode and "success" or "off")
+end)
+addButton(miscPage, "UNDO", 3, undoLast)
+addButton(miscPage, "DELETE ALL (WALL/DOOR)", 4, deleteAllWalls)
+addButton(miscPage, "UNDO ALL", 5, undoAll)
+
+-- Name change
+local nameCard = addCard(miscPage, "CHANGE NAME (TAG)", 6)
+local nameBox = Instance.new("TextBox", nameCard)
+nameBox.Size = UDim2.new(0.4,0,0,24)
+nameBox.Position = UDim2.new(0.55,0,0.5,-12)
+nameBox.BackgroundColor3 = C.surface
+nameBox.Text = "Nama baru"
+nameBox.Font = Enum.Font.Gotham
+nameBox.TextColor3 = C.text
+Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0,6)
+nameBox.FocusLost:Connect(function(enter)
+    if enter then changeName(nameBox.Text) playNotifSound() end
+end)
+
+local usnCard = addCard(miscPage, "CHANGE USERNAME (RANK)", 7)
+local usnBox = Instance.new("TextBox", usnCard)
+usnBox.Size = UDim2.new(0.4,0,0,24)
+usnBox.Position = UDim2.new(0.55,0,0.5,-12)
+usnBox.BackgroundColor3 = C.surface
+usnBox.Text = "Username baru"
+usnBox.Font = Enum.Font.Gotham
+usnBox.TextColor3 = C.text
+Instance.new("UICorner", usnBox).CornerRadius = UDim.new(0,6)
+usnBox.FocusLost:Connect(function(enter)
+    if enter then changeUsername(usnBox.Text) playNotifSound() end
+end)
+
+-- TELEPORT TAB
+local tpPage = pages["TELEPORT"]
+local tpLayout = Instance.new("UIListLayout", tpPage)
+tpLayout.Padding = UDim.new(0,6)
+Instance.new("UIPadding", tpPage).PaddingTop = UDim.new(0,10)
+
+local teleportPoints = {
+    {"NPC Store", CFrame.new(510.76,3.59,600.79)},
+    {"Tier", CFrame.new(1110.19,4.28,117.14)},
+    {"Apart 1", CFrame.new(1140.3,10.1,450.3)},
+    {"Apart 2", CFrame.new(1141.4,10.1,422.8)},
+    {"Mall", CFrame.new(-725.4,4.8,587.4)},
+    {"Safe Zone", CFrame.new(579.0,3.5,-539.7)},
+}
+for i, data in ipairs(teleportPoints) do
+    addButton(tpPage, data[1], i, function()
+        vehicleTeleport(data[2])
+        notify("Teleport", "Ke "..data[1], "info")
+    end)
+end
+
+-- VEHICLE FLY TAB
+local vfPage = pages["VEHICLE"]
+local vfLayout = Instance.new("UIListLayout", vfPage)
+vfLayout.Padding = UDim.new(0,6)
+Instance.new("UIPadding", vfPage).PaddingTop = UDim.new(0,10)
+
+addButton(vfPage, "ACTIVATE FLY (WASD+E/Q)", 1, startFly)
+addButton(vfPage, "DEACTIVATE FLY", 2, stopFly)
+
+-- ESP TAB
+local espPage = pages["ESP"]
+local espLayout = Instance.new("UIListLayout", espPage)
+espLayout.Padding = UDim.new(0,6)
+Instance.new("UIPadding", espPage).PaddingTop = UDim.new(0,10)
+
+addToggle(espPage, "ENABLE ESP", 1, function(s) ESPEnabled = s end)
+addToggle(espPage, "SHOW NAME", 2, function(s) ShowName = s end)
+addToggle(espPage, "SHOW HEALTH", 3, function(s) ShowHealth = s end)
+addToggle(espPage, "SHOW DISTANCE", 4, function(s) ShowDistance = s end)
+addSlider(espPage, "MAX DISTANCE", 100, 8000, 500, 5, function(v) MaxDistance = v end)
+
+-- Default buka tab FARM
+pages["FARM"].Visible = true
+tabButtons["FARM"].BackgroundTransparency = 0
+tabButtons["FARM"].TextColor3 = C.text
+
+-- ========== SOUND LOADER + SHOW GUI AFTER SOUND ==========
+local loaderSound = Instance.new("Sound", SoundService)
+loaderSound.SoundId = SOUND_LOADER
+loaderSound.Volume = 0.8
+loaderSound:Play()
+notify("Silent Hub", "Memuat... tunggu sound selesai", "info")
+
+loaderSound.Ended:Connect(function()
+    loaderSound:Destroy()
+    loadGui:Destroy()
+    main.Visible = true
+    main.BackgroundTransparency = 1
+    tw(main, {BackgroundTransparency = 0}, 0.4)
+    notify("Silent Hub", "Script siap digunakan! 💖", "success")
+end)
+
+-- Tambahan anti idle
+player.Idled:Connect(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
+
+-- Update tier color periodically
 task.spawn(function()
-	repeat task.wait(0.1) until startupDone
-	task.wait(0.3)
-	notify("Silent.GG", "Script berhasil diload!", "success")
+    while gui and gui.Parent do
+        updateTierColor()
+        task.wait(5)
+    end
 end)
+
+print("Silent Hub V2 - Dragon Edition loaded. Sayangku, semua fitur aktif~ 💋")
