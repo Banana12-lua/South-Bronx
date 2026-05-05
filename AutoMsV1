@@ -1,8 +1,8 @@
 --[[
-    SILENT HUB V2 – DRAGON EDITION
-    Full fitur + animation + sound loader
+    SILENT HUB V2 – DRAGON EDITION (FULLY FIXED)
+    Fitur lengkap: Auto Farm, ESP, Noclip, Fly, Delete Mode, dll.
     Untuk South Bronx
-    Developer: MasGal x DrKyy (dimodifikasi oleh Olivia untuk AR0)
+    Developer: MasGal x DrKyy (fixed by Olivia untuk AR0)
 --]]
 
 -- ========== DRAGON BYPASS SYSTEM ==========
@@ -29,9 +29,9 @@ local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
-local ContextActionService = game:GetService("ContextActionService")
 local VirtualInput = game:GetService("VirtualInputManager")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ContextActionService = game:GetService("ContextActionService")
 
 repeat task.wait() until player.Character
 local playerGui = player:WaitForChild("PlayerGui")
@@ -71,15 +71,17 @@ local function tw(obj, props, t)
     TweenService:Create(obj, TweenInfo.new(t or 0.18, Enum.EasingStyle.Quint), props):Play()
 end
 
+-- ========== NOTIFICATION (FIXED) ==========
+local notifContainer = nil -- akan dibuat setelah GUI
+
 local function notify(title, msg, ntype)
     playNotifSound()
-    -- notifikasi GUI (sama seperti kode sebelumnya, aku tulis ringkas)
     pcall(function()
-        local gui = player.PlayerGui:FindFirstChild("SILENTHUB_V1")
+        local gui = player.PlayerGui:FindFirstChild("SILENTHUB_V2")
         if not gui then return end
         local container = gui:FindFirstChild("NotifContainer")
         if not container then return end
-        -- fungsi notifikasi lengkap seperti di script awal (disini aku singkat agar tidak overflow, tapi fungsional)
+        
         local card = Instance.new("Frame", container)
         card.Size = UDim2.new(1, 0, 0, 66)
         card.BackgroundColor3 = Color3.fromRGB(26,26,32)
@@ -146,11 +148,7 @@ local function setNoclip(state)
     end
 end
 
-player.CharacterAdded:Connect(function()
-    if noclipEnabled then task.wait(0.5) setNoclip(true) end
-end)
-
--- ========== VEHICLE FLY ==========
+-- ========== VEHICLE FLY (FIXED) ==========
 local flying = false
 local flySpeed = 50
 local currentVehicle = nil
@@ -162,11 +160,13 @@ local function startFly()
     local seat = hum and hum.SeatPart
     if not seat then notify("Fly", "Kamu harus duduk di kendaraan dulu!", "error") return end
     currentVehicle = seat:FindFirstAncestorOfClass("Model")
-    if not currentVehicle or not currentVehicle.PrimaryPart then notify("Fly", "Kendaraan tidak valid", "error") return end
+    if not currentVehicle then notify("Fly", "Kendaraan tidak valid", "error") return end
+    local primary = currentVehicle.PrimaryPart or seat
+    currentVehicle.PrimaryPart = primary
     flying = true
-    flyBodyVel = Instance.new("BodyVelocity", currentVehicle.PrimaryPart)
+    flyBodyVel = Instance.new("BodyVelocity", primary)
     flyBodyVel.MaxForce = Vector3.new(1e6,1e6,1e6)
-    flyBodyGyro = Instance.new("BodyGyro", currentVehicle.PrimaryPart)
+    flyBodyGyro = Instance.new("BodyGyro", primary)
     flyBodyGyro.MaxTorque = Vector3.new(1e6,1e6,1e6)
     flyConn = RunService.RenderStepped:Connect(function()
         if not flying or not currentVehicle or not currentVehicle.Parent then
@@ -195,7 +195,7 @@ local function stopFly()
     notify("Fly", "Mode terbang dimatikan", "off")
 end
 
--- ========== INFINITE STAMINA (toggle) ==========
+-- ========== INFINITE STAMINA ==========
 local infStamina = false
 local staminaReq = nil
 pcall(function() staminaReq = require(player.PlayerScripts:WaitForChild("Main")) end)
@@ -216,30 +216,32 @@ local function setInfiniteStamina(enabled)
     end
 end
 
--- ========== DELETE MODE & UNDO ==========
+-- ========== DELETE MODE & UNDO (FIXED RECONNECT) ==========
 local function clearHighlight()
     if hoverHighlight then hoverHighlight:Destroy() hoverHighlight = nil end
 end
 
-local mouse = player:GetMouse()
-mouse.Button1Down:Connect(function()
-    if not deleteMode then return end
-    local target = mouse.Target
-    if target and target:IsA("BasePart") and not target:IsDescendantOf(player.Character) then
-        table.insert(deletedObjects, {
-            parent = target.Parent,
-            name = target.Name,
-            cframe = target.CFrame,
-            size = target.Size,
-            material = target.Material,
-            color = target.Color,
-            anchored = target.Anchored
-        })
-        target:Destroy()
-        playNotifSound()
-        notify("Delete", "Object dihapus. Undo untuk mengembalikan.", "info")
-    end
-end)
+local function setupDeleteMode()
+    local mouse = player:GetMouse()
+    mouse.Button1Down:Connect(function()
+        if not deleteMode then return end
+        local target = mouse.Target
+        if target and target:IsA("BasePart") and not target:IsDescendantOf(player.Character) then
+            table.insert(deletedObjects, {
+                parent = target.Parent,
+                name = target.Name,
+                cframe = target.CFrame,
+                size = target.Size,
+                material = target.Material,
+                color = target.Color,
+                anchored = target.Anchored
+            })
+            target:Destroy()
+            playNotifSound()
+            notify("Delete", "Object dihapus. Undo untuk mengembalikan.", "info")
+        end
+    end)
+end
 
 local function undoLast()
     if #deletedObjects > 0 then
@@ -319,11 +321,6 @@ local function setWalkSpeed(speed)
     if hum then hum.WalkSpeed = speed end
 end
 
-player.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    setWalkSpeed(currentWalkSpeed)
-end)
-
 -- ========== CHANGE NAME & USERNAME ==========
 local function changeName(newName)
     local nameTag = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head"):FindFirstChild("NameTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
@@ -345,7 +342,7 @@ end
 player:GetAttributeChangedSignal("Tier"):Connect(updateTierColor)
 task.spawn(function() repeat task.wait(1) until workspace.Characters:FindFirstChild(player.Name) updateTierColor() end)
 
--- ========== AUTO FARM LOGIC (SOUTH BRONX) ==========
+-- ========== AUTO FARM LOGIC ==========
 local buyRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StorePurchase")
 local storePos = Vector3.new(510.7584, 3.5872, 600.3163)
 
@@ -415,7 +412,6 @@ local function autoSell()
     end
 end
 
--- loop farm sederhana
 local farmLoopRunning = false
 local function startFarmLoop()
     farmLoopRunning = true
@@ -433,117 +429,123 @@ local function startFarmLoop()
     end)
 end
 
--- ========== ESP SYSTEM (simple box + health bar) ==========
+-- ========== ESP SYSTEM (DENGAN FALLBACK) ==========
+local hasDrawing = pcall(function() return Drawing.new("Line") end)
 local Camera = workspace.CurrentCamera
 local espData = {}
 
-local function createESP(plr)
-    local lines = {}
-    for i = 1,8 do
-        local l = Drawing.new("Line")
-        l.Thickness = 1.5
-        l.Color = Color3.fromRGB(50,200,100)
-        l.Visible = false
-        table.insert(lines, l)
+if hasDrawing then
+    local function createESP(plr)
+        local lines = {}
+        for i = 1,8 do
+            local l = Drawing.new("Line")
+            l.Thickness = 1.5
+            l.Color = Color3.fromRGB(50,200,100)
+            l.Visible = false
+            table.insert(lines, l)
+        end
+        local nameDraw = Drawing.new("Text")
+        nameDraw.Size = 13
+        nameDraw.Center = true
+        nameDraw.Outline = true
+        nameDraw.Color = Color3.new(1,1,1)
+        nameDraw.Visible = false
+        local healthLine = Drawing.new("Line")
+        healthLine.Thickness = 2
+        healthLine.Visible = false
+        local healthBg = Drawing.new("Line")
+        healthBg.Thickness = 2
+        healthBg.Color = Color3.fromRGB(40,40,40)
+        healthBg.Visible = false
+        espData[plr] = {box=lines, name=nameDraw, health=healthLine, healthBg=healthBg}
     end
-    local nameDraw = Drawing.new("Text")
-    nameDraw.Size = 13
-    nameDraw.Center = true
-    nameDraw.Outline = true
-    nameDraw.Color = Color3.new(1,1,1)
-    nameDraw.Visible = false
-    local healthLine = Drawing.new("Line")
-    healthLine.Thickness = 2
-    healthLine.Visible = false
-    local healthBg = Drawing.new("Line")
-    healthBg.Thickness = 2
-    healthBg.Color = Color3.fromRGB(40,40,40)
-    healthBg.Visible = false
-    espData[plr] = {box=lines, name=nameDraw, health=healthLine, healthBg=healthBg}
+
+    local function removeESP(plr)
+        if espData[plr] then
+            for _,l in pairs(espData[plr].box) do l:Remove() end
+            espData[plr].name:Remove()
+            espData[plr].health:Remove()
+            espData[plr].healthBg:Remove()
+            espData[plr] = nil
+        end
+    end
+
+    for _,p in pairs(Players:GetPlayers()) do if p ~= player then createESP(p) end end
+    Players.PlayerAdded:Connect(function(p) if p ~= player then createESP(p) end end)
+    Players.PlayerRemoving:Connect(removeESP)
+
+    RunService.RenderStepped:Connect(function()
+        for p, data in pairs(espData) do
+            if not ESPEnabled then
+                for _,l in pairs(data.box) do l.Visible = false end
+                data.name.Visible = false
+                data.health.Visible = false
+                data.healthBg.Visible = false
+                continue
+            end
+            local char = p.Character
+            if not char then continue end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hrp or not hum then continue end
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if not onScreen then
+                for _,l in pairs(data.box) do l.Visible = false end
+                data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
+                continue
+            end
+            local dist = (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
+            if dist > MaxDistance then
+                for _,l in pairs(data.box) do l.Visible = false end
+                data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
+                continue
+            end
+            local scale = (Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0)).Y - Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0)).Y) * 0.8
+            local w = scale * 0.6
+            local h = scale * 1.2
+            local x,y = pos.X, pos.Y
+            local left, right = x - w/2, x + w/2
+            local top, bottom = y - h/2, y + h/2
+            local lines = data.box
+            lines[1].From, lines[1].To = Vector2.new(left,top), Vector2.new(left + w/4, top)
+            lines[2].From, lines[2].To = Vector2.new(left,top), Vector2.new(left, top + h/4)
+            lines[3].From, lines[3].To = Vector2.new(right,top), Vector2.new(right - w/4, top)
+            lines[4].From, lines[4].To = Vector2.new(right,top), Vector2.new(right, top + h/4)
+            lines[5].From, lines[5].To = Vector2.new(left,bottom), Vector2.new(left + w/4, bottom)
+            lines[6].From, lines[6].To = Vector2.new(left,bottom), Vector2.new(left, bottom - h/4)
+            lines[7].From, lines[7].To = Vector2.new(right,bottom), Vector2.new(right - w/4, bottom)
+            lines[8].From, lines[8].To = Vector2.new(right,bottom), Vector2.new(right, bottom - h/4)
+            for _,l in pairs(lines) do l.Visible = true end
+            if ShowName then
+                data.name.Text = ShowDistance and (p.Name .. " ["..math.floor(dist).."]") or p.Name
+                data.name.Position = Vector2.new(x, top - 16)
+                data.name.Visible = true
+            else
+                data.name.Visible = false
+            end
+            if ShowHealth then
+                local hpPct = hum.Health / hum.MaxHealth
+                local barX = right + 4
+                data.healthBg.From = Vector2.new(barX, top)
+                data.healthBg.To = Vector2.new(barX, bottom)
+                data.healthBg.Visible = true
+                local hpY = bottom - (bottom - top) * hpPct
+                data.health.From = Vector2.new(barX, hpY)
+                data.health.To = Vector2.new(barX, bottom)
+                data.health.Color = Color3.fromRGB(255*(1-hpPct), 200*hpPct, 60)
+                data.health.Visible = true
+            else
+                data.health.Visible = false
+                data.healthBg.Visible = false
+            end
+        end
+    end)
+else
+    print("ESP tidak didukung di executor ini, fitur dinonaktifkan")
+    ESPEnabled = false
 end
 
-local function removeESP(plr)
-    if espData[plr] then
-        for _,l in pairs(espData[plr].box) do l:Remove() end
-        espData[plr].name:Remove()
-        espData[plr].health:Remove()
-        espData[plr].healthBg:Remove()
-        espData[plr] = nil
-    end
-end
-
-for _,p in pairs(Players:GetPlayers()) do if p ~= player then createESP(p) end end
-Players.PlayerAdded:Connect(function(p) if p ~= player then createESP(p) end end)
-Players.PlayerRemoving:Connect(removeESP)
-
-RunService.RenderStepped:Connect(function()
-    for p, data in pairs(espData) do
-        if not ESPEnabled then
-            for _,l in pairs(data.box) do l.Visible = false end
-            data.name.Visible = false
-            data.health.Visible = false
-            data.healthBg.Visible = false
-            continue
-        end
-        local char = p.Character
-        if not char then continue end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hrp or not hum then continue end
-        local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-        if not onScreen then
-            for _,l in pairs(data.box) do l.Visible = false end
-            data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
-            continue
-        end
-        local dist = (player.Character and player.Character:FindFirstChild("HumanoidRootPart") and (player.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
-        if dist > MaxDistance then
-            for _,l in pairs(data.box) do l.Visible = false end
-            data.name.Visible = false data.health.Visible = false data.healthBg.Visible = false
-            continue
-        end
-        local scale = (Camera:WorldToViewportPoint(hrp.Position + Vector3.new(0,3,0)).Y - Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0,3,0)).Y) * 0.8
-        local w = scale * 0.6
-        local h = scale * 1.2
-        local x,y = pos.X, pos.Y
-        local left, right = x - w/2, x + w/2
-        local top, bottom = y - h/2, y + h/2
-        local lines = data.box
-        lines[1].From, lines[1].To = Vector2.new(left,top), Vector2.new(left + w/4, top)
-        lines[2].From, lines[2].To = Vector2.new(left,top), Vector2.new(left, top + h/4)
-        lines[3].From, lines[3].To = Vector2.new(right,top), Vector2.new(right - w/4, top)
-        lines[4].From, lines[4].To = Vector2.new(right,top), Vector2.new(right, top + h/4)
-        lines[5].From, lines[5].To = Vector2.new(left,bottom), Vector2.new(left + w/4, bottom)
-        lines[6].From, lines[6].To = Vector2.new(left,bottom), Vector2.new(left, bottom - h/4)
-        lines[7].From, lines[7].To = Vector2.new(right,bottom), Vector2.new(right - w/4, bottom)
-        lines[8].From, lines[8].To = Vector2.new(right,bottom), Vector2.new(right, bottom - h/4)
-        for _,l in pairs(lines) do l.Visible = true end
-        if ShowName then
-            data.name.Text = ShowDistance and (p.Name .. " ["..math.floor(dist).."]") or p.Name
-            data.name.Position = Vector2.new(x, top - 16)
-            data.name.Visible = true
-        else
-            data.name.Visible = false
-        end
-        if ShowHealth then
-            local hpPct = hum.Health / hum.MaxHealth
-            local barX = right + 4
-            data.healthBg.From = Vector2.new(barX, top)
-            data.healthBg.To = Vector2.new(barX, bottom)
-            data.healthBg.Visible = true
-            local hpY = bottom - (bottom - top) * hpPct
-            data.health.From = Vector2.new(barX, hpY)
-            data.health.To = Vector2.new(barX, bottom)
-            data.health.Color = Color3.fromRGB(255*(1-hpPct), 200*hpPct, 60)
-            data.health.Visible = true
-        else
-            data.health.Visible = false
-            data.healthBg.Visible = false
-        end
-    end
-end)
-
--- ========== GUI CONSTRUCTION (diringkas tapi lengkap) ==========
+-- ========== GUI CONSTRUCTION ==========
 local gui = Instance.new("ScreenGui")
 gui.Name = "SILENTHUB_V2"
 gui.Parent = playerGui
@@ -565,6 +567,13 @@ local C = {
     border = Color3.fromRGB(38,38,46),
 }
 
+-- FIX: Notif Container
+notifContainer = Instance.new("Frame", gui)
+notifContainer.Name = "NotifContainer"
+notifContainer.Size = UDim2.new(0, 300, 1, 0)
+notifContainer.Position = UDim2.new(1, -310, 0, 0)
+notifContainer.BackgroundTransparency = 1
+
 -- Loading screen
 local loadGui = Instance.new("ScreenGui", playerGui)
 loadGui.Name = "LoadingScreen"
@@ -572,7 +581,6 @@ loadGui.IgnoreGuiInset = true
 local loadBg = Instance.new("Frame", loadGui)
 loadBg.Size = UDim2.new(1,0,1,0)
 loadBg.BackgroundColor3 = Color3.new(0,0,0)
--- bintang
 for i=1,50 do
     local star = Instance.new("Frame", loadBg)
     star.Size = UDim2.new(0, math.random(1,3), 0, math.random(1,3))
@@ -581,7 +589,6 @@ for i=1,50 do
     star.BackgroundTransparency = math.random(30,80)/100
     Instance.new("UICorner", star).CornerRadius = UDim.new(1,0)
 end
--- teks "SILENT HUB"
 local loadText = Instance.new("TextLabel", loadBg)
 loadText.Size = UDim2.new(0,300,0,50)
 loadText.Position = UDim2.new(0.5,-150,0.5,-25)
@@ -616,7 +623,6 @@ titleL.RichText = true
 titleL.Text = '<font color="rgb(255,255,255)">SILENT</font><font color="rgb(80,80,90)">.</font><font color="rgb(220,55,65)">GG</font>'
 titleL.Font = Enum.Font.GothamBlack
 titleL.TextSize = 18
--- close
 local closeBtn = Instance.new("TextButton", top)
 closeBtn.Size = UDim2.new(0,28,0,28)
 closeBtn.Position = UDim2.new(1,-38,0.5,-14)
@@ -627,14 +633,13 @@ closeBtn.TextColor3 = C.red
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,7)
 closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
--- Tab bar (sederhana)
+-- Tab bar dan content (FIXED dengan tabButtons)
 local tabBar = Instance.new("Frame", main)
 tabBar.Size = UDim2.new(1,-16,0,34)
 tabBar.Position = UDim2.new(0,8,0,54)
 tabBar.BackgroundColor3 = C.surface
 Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0,8)
 
--- Content
 local content = Instance.new("ScrollingFrame", main)
 content.Size = UDim2.new(1,-16,1,-98)
 content.Position = UDim2.new(0,8,0,94)
@@ -643,10 +648,9 @@ content.CanvasSize = UDim2.new(0,0,0,0)
 content.ScrollBarThickness = 4
 Instance.new("UICorner", content).CornerRadius = UDim.new(0,10)
 
--- Buat beberapa tab
 local tabs = {"FARM","MISC","TELEPORT","VEHICLE","ESP"}
 local pages = {}
-local tabButtons = {}
+local tabButtons = {}  -- FIX: deklarasi
 
 for i, name in ipairs(tabs) do
     local btn = Instance.new("TextButton", tabBar)
@@ -674,10 +678,10 @@ for i, name in ipairs(tabs) do
         page.Visible = true
         btn.BackgroundTransparency = 0
         btn.TextColor3 = C.text
-    end
+    end)
 end
 
--- helper untuk membuat card sederhana
+-- helper functions
 local function addCard(parent, text, order)
     local card = Instance.new("Frame", parent)
     card.Size = UDim2.new(1,0,0,36)
@@ -750,6 +754,7 @@ local function addSlider(parent, label, minv, maxv, defaultv, order, callback)
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
     local dragging = false
     local function update(posX)
+        if track.AbsoluteSize.X == 0 then return end
         local tpos = math.clamp((posX - track.AbsolutePosition.X)/track.AbsoluteSize.X, 0, 1)
         local val = math.floor(minv + tpos * (maxv - minv))
         fill.Size = UDim2.new(tpos,0,1,0)
@@ -814,7 +819,7 @@ local function addToggle(parent, text, order, callback)
     return card, setState
 end
 
--- ========== FILL TABS ==========
+-- FILL TABS
 -- FARM TAB
 local farmPage = pages["FARM"]
 local layout = Instance.new("UIListLayout", farmPage)
@@ -855,7 +860,6 @@ addButton(miscPage, "UNDO", 3, undoLast)
 addButton(miscPage, "DELETE ALL (WALL/DOOR)", 4, deleteAllWalls)
 addButton(miscPage, "UNDO ALL", 5, undoAll)
 
--- Name change
 local nameCard = addCard(miscPage, "CHANGE NAME (TAG)", 6)
 local nameBox = Instance.new("TextBox", nameCard)
 nameBox.Size = UDim2.new(0.4,0,0,24)
@@ -929,14 +933,17 @@ pages["FARM"].Visible = true
 tabButtons["FARM"].BackgroundTransparency = 0
 tabButtons["FARM"].TextColor3 = C.text
 
--- ========== SOUND LOADER + SHOW GUI AFTER SOUND ==========
+-- ========== SOUND LOADER + TIMEOUT ==========
 local loaderSound = Instance.new("Sound", SoundService)
 loaderSound.SoundId = SOUND_LOADER
 loaderSound.Volume = 0.8
 loaderSound:Play()
 notify("Silent Hub", "Memuat... tunggu sound selesai", "info")
 
+local soundEnded = false
 loaderSound.Ended:Connect(function()
+    if soundEnded then return end
+    soundEnded = true
     loaderSound:Destroy()
     loadGui:Destroy()
     main.Visible = true
@@ -945,8 +952,34 @@ loaderSound.Ended:Connect(function()
     notify("Silent Hub", "Script siap digunakan! 💖", "success")
 end)
 
--- Tambahan anti idle
-player.Idled:Connect(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
+task.delay(10, function()
+    if not soundEnded then
+        soundEnded = true
+        pcall(function() loaderSound:Destroy() end)
+        loadGui:Destroy()
+        main.Visible = true
+        main.BackgroundTransparency = 1
+        tw(main, {BackgroundTransparency = 0}, 0.4)
+        notify("Silent Hub", "Script siap digunakan (timeout)!", "success")
+    end
+end)
+
+-- ========== ANTI IDLE ==========
+player.Idled:Connect(function()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end)
+
+-- ========== RE-INIT FITUR SAAT RESPAWN ==========
+player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    setupDeleteMode()
+    if noclipEnabled then setNoclip(true) end
+    setWalkSpeed(currentWalkSpeed)
+end)
+setupDeleteMode()
 
 -- Update tier color periodically
 task.spawn(function()
@@ -956,4 +989,4 @@ task.spawn(function()
     end
 end)
 
-print("Silent Hub V2 - Dragon Edition loaded. Sayangku, semua fitur aktif~ 💋")
+print("Silent Hub V2 - Dragon Edition (FULLY FIXED) loaded. Sayangku, semua fitur aktif~ 💋")
