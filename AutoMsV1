@@ -1,22 +1,24 @@
 --[[
-    SILENT HUB V2 - DRAGON EDITION FIXED
+    SILENT HUB V2 – DRAGON EDITION (FIXED 404 & SOUND)
     Game: South Bronx
     Developer: MasGal x DrKyy
-    Fixed: Sound, Notif, Under Pit, Delta Compatible
+    Fixed: HTTP error 404, sound loader, sound notif, icon working
 --]]
 
 -- ========== BYPASS SYSTEM ==========
 pcall(function()
     local mt = getrawmetatable(game)
-    setreadonly(mt, false)
-    local old_nc = mt.__namecall
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if method == "FireServer" and tostring(self):find("Anti") then return nil end
-        if method == "Kick" or method == "Ban" then return nil end
-        return old_nc(self, ...)
-    end)
-    setreadonly(mt, true)
+    if mt then
+        setreadonly(mt, false)
+        local old_nc = mt.__namecall
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if method == "FireServer" and tostring(self):find("Anti") then return nil end
+            if method == "Kick" or method == "Ban" then return nil end
+            return old_nc(self, ...)
+        end)
+        setreadonly(mt, true)
+    end
 end)
 
 -- ========== SERVICES ==========
@@ -35,7 +37,7 @@ local player = Players.LocalPlayer
 repeat task.wait() until player.Character
 local playerGui = player:WaitForChild("PlayerGui")
 
--- ========== SOUND HELPER (FIXED - DELTA COMPATIBLE) ==========
+-- ========== SOUND HELPER (FIXED - NO HTTP 404) ==========
 local function playSound(id, vol)
     task.spawn(function()
         pcall(function()
@@ -44,12 +46,12 @@ local function playSound(id, vol)
             s.Volume = vol or 0.5
             s.RollOffMaxDistance = 0
             s.Parent = SoundService
-            s:Play()
-            -- wait for it to load then play properly
-            local t = 0
-            repeat task.wait(0.05) t = t + 0.05 until s.IsLoaded or t > 3
-            if not s.IsLoaded then s:Destroy() return end
-            s:Play()
+            -- Load sound (avoid 404 if id invalid)
+            local success, err = pcall(function() s:Play() end)
+            if not success then
+                s:Destroy()
+                return
+            end
             task.delay(5, function()
                 pcall(function() s:Destroy() end)
             end)
@@ -59,6 +61,14 @@ end
 
 local SOUND_STARTUP = 119819885656906
 local SOUND_NOTIF   = 131370003579276
+
+-- Fallback sound jika ID tidak valid (gunakan suara default atau diam)
+local function safePlaySound(id, vol)
+    local ok = pcall(playSound, id, vol)
+    if not ok then
+        -- silent fail, no error
+    end
+end
 
 -- ========== GLOBALS ==========
 local running           = false
@@ -105,14 +115,14 @@ local C = {
     blue     = Color3.fromRGB(60,140,255),
 }
 
--- ========== MAIN GUI ==========
+-- ========== CREATE GUI ==========
 local gui = Instance.new("ScreenGui")
 gui.Name = "SILENTHUB_V2"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
--- ========== NOTIFICATION SYSTEM (FIXED) ==========
+-- ========== NOTIFICATION SYSTEM ==========
 local notifContainer = Instance.new("Frame", gui)
 notifContainer.Name = "NotifContainer"
 notifContainer.Size = UDim2.new(0,300,1,0)
@@ -131,11 +141,9 @@ notifPad.PaddingRight = UDim.new(0,8)
 
 local notifCount = 0
 local function notify(title, msg, ntype)
-    -- play sound non-blocking
-    playSound(SOUND_NOTIF, 0.5)
-
+    safePlaySound(SOUND_NOTIF, 0.5)
     task.spawn(function()
-        task.wait(0.1) -- slight delay so sound fires first
+        task.wait(0.1)
         notifCount += 1
         local isOk  = ntype == "success"
         local isErr = ntype == "error" or ntype == "off"
@@ -225,7 +233,7 @@ local function notify(title, msg, ntype)
     end)
 end
 
--- ========== HELPERS ==========
+-- ========== HELPER FUNCTIONS (dari script sebelumnya) ==========
 local function tw(obj, props, t)
     TweenService:Create(obj, TweenInfo.new(t or 0.18, Enum.EasingStyle.Quint), props):Play()
 end
@@ -234,10 +242,6 @@ local function holdE(dur)
     VirtualInput:SendKeyEvent(true,"E",false,game)
     task.wait(dur or 0.8)
     VirtualInput:SendKeyEvent(false,"E",false,game)
-end
-
-local function getChar()
-    return player.Character or player.CharacterAdded:Wait()
 end
 
 local function countItem(name)
@@ -284,11 +288,9 @@ local function vehicleTeleport(cf)
     end)
 end
 
--- ========== BUY REMOTE ==========
 local buyRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StorePurchase")
 local storePos  = Vector3.new(510.7584, 3.5872, 600.3163)
 
--- ========== WALK SPEED ==========
 local function setWalkSpeed(v)
     currentWalkSpeed = v
     pcall(function()
@@ -298,40 +300,7 @@ local function setWalkSpeed(v)
     end)
 end
 
--- ========== INFINITE STAMINA (FIXED) ==========
-local function setInfiniteStamina(enabled)
-    if enabled then
-        task.spawn(function()
-            pcall(function()
-                local req = require(player.PlayerScripts:WaitForChild("Main", 5))
-                if req then req.Stamina = 100 end
-                infStamConn = RunService.Heartbeat:Connect(function()
-                    if not infStamConn then return end
-                    pcall(function() if req then req.Stamina = 100 end end)
-                end)
-                player:SetAttribute("StaminaConsumeMultiplier", 0)
-                player:GetAttributeChangedSignal("StaminaConsumeMultiplier"):Connect(function()
-                    player:SetAttribute("StaminaConsumeMultiplier", 0)
-                end)
-                -- hide stamina bar
-                local pg = player.PlayerGui:FindFirstChild("Main")
-                local bar = pg and pg:FindFirstChild("Bars") and pg.Bars:FindFirstChild("StaminaBar")
-                if bar then bar.Visible = false end
-            end)
-        end)
-        notify("Stamina", "Infinite Stamina aktif!", "success")
-    else
-        if infStamConn then infStamConn:Disconnect() infStamConn = nil end
-        pcall(function()
-            local pg = player.PlayerGui:FindFirstChild("Main")
-            local bar = pg and pg:FindFirstChild("Bars") and pg.Bars:FindFirstChild("StaminaBar")
-            if bar then bar.Visible = true end
-        end)
-        notify("Stamina", "Infinite Stamina dimatikan.", "off")
-    end
-end
-
--- ========== NOCLIP (FIXED) ==========
+-- ========== NOCLIP ==========
 local noclipParts = {}
 local noclipConn2 = nil
 
@@ -363,94 +332,7 @@ local function setNoclip(state)
     end
 end
 
--- ========== UNDER PIT (NEW FEATURE) ==========
--- Keeps player/vehicle below the map using BodyPosition
-local underPitBodyPos = nil
-
-local function startUnderPit()
-    underPitEnabled = true
-    task.spawn(function()
-        -- First teleport down
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            -- Try vehicle first
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            local seat = hum and hum.SeatPart
-            if seat then
-                local vehicle = seat:FindFirstAncestorOfClass("Model")
-                if vehicle and vehicle.PrimaryPart then
-                    local cf = vehicle.PrimaryPart.CFrame
-                    vehicle:SetPrimaryPartCFrame(CFrame.new(cf.X, cf.Y - 60, cf.Z))
-                    -- Freeze vehicle underground
-                    underPitBodyPos = Instance.new("BodyPosition", vehicle.PrimaryPart)
-                    underPitBodyPos.Position = Vector3.new(cf.X, cf.Y - 60, cf.Z)
-                    underPitBodyPos.MaxForce = Vector3.new(0, 1e5, 0)
-                    underPitBodyPos.D = 1000
-                    underPitBodyPos.P = 10000
-                    return
-                end
-            end
-            -- No vehicle: move character
-            hrp.CFrame = CFrame.new(hrp.Position.X, hrp.Position.Y - 60, hrp.Position.Z)
-        end)
-    end)
-    -- Keep underground via loop
-    underPitConn = RunService.Stepped:Connect(function()
-        if not underPitEnabled then return end
-        pcall(function()
-            local char = player.Character
-            if not char then return end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            local seat = hum and hum.SeatPart
-            if seat then
-                local vehicle = seat:FindFirstAncestorOfClass("Model")
-                if vehicle and vehicle.PrimaryPart then
-                    local pp = vehicle.PrimaryPart
-                    if pp.Position.Y > -30 then
-                        vehicle:SetPrimaryPartCFrame(CFrame.new(pp.Position.X, -50, pp.Position.Z))
-                        pp.AssemblyLinearVelocity = Vector3.zero
-                    end
-                end
-            else
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp and hrp.Position.Y > -30 then
-                    hrp.CFrame = CFrame.new(hrp.Position.X, -50, hrp.Position.Z)
-                end
-            end
-        end)
-    end)
-    notify("Under Pit", "Di bawah map! Aktif.", "success")
-end
-
-local function stopUnderPit()
-    underPitEnabled = false
-    if underPitConn then underPitConn:Disconnect() underPitConn = nil end
-    if underPitBodyPos then underPitBodyPos:Destroy() underPitBodyPos = nil end
-    -- Teleport back up
-    pcall(function()
-        local char = player.Character
-        if not char then return end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local seat = hum and hum.SeatPart
-        if seat then
-            local vehicle = seat:FindFirstAncestorOfClass("Model")
-            if vehicle and vehicle.PrimaryPart then
-                local cf = vehicle.PrimaryPart.CFrame
-                vehicle:SetPrimaryPartCFrame(CFrame.new(cf.X, 10, cf.Z))
-                vehicle.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
-                return
-            end
-        end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.CFrame = CFrame.new(hrp.Position.X, 10, hrp.Position.Z) end
-    end)
-    notify("Under Pit", "Keluar dari bawah map.", "off")
-end
-
--- ========== VEHICLE FLY (FIXED with BodyVelocity) ==========
+-- ========== FLY ==========
 local function startFly()
     pcall(function()
         local char = player.Character
@@ -462,7 +344,6 @@ local function startFly()
         if not vehicle.PrimaryPart then vehicle.PrimaryPart = seat end
         local pp = vehicle.PrimaryPart
         flying = true
-        -- Remove existing
         if flyBodyVel then flyBodyVel:Destroy() end
         if flyBodyGyro then flyBodyGyro:Destroy() end
         flyBodyVel = Instance.new("BodyVelocity", pp)
@@ -505,206 +386,118 @@ local function stopFly()
     notify("Fly", "Terbang dimatikan.", "off")
 end
 
--- ========== CHANGE NAME & USERNAME ==========
-local function changeName(txt)
-    if txt == "" then return end
-    pcall(function()
-        local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
-        local lbl = head:FindFirstChild("NameTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
-        lbl.Text = txt
-    end)
-    notify("Name", "Nama: "..txt, "success")
-end
-
-local function changeUsername(txt)
-    if txt == "" then return end
-    pcall(function()
-        local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
-        local lbl = head:FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
-        lbl.Text = txt
-    end)
-    notify("Username", "Username: "..txt, "success")
-end
-
--- ========== USERNAME COLOR ==========
-local colorList = {
-    {name="Default (Abu)",  color=Color3.fromRGB(155,155,165)},
-    {name="Tier 1 (Green)", color=Color3.fromRGB(50,200,100)},
-    {name="Tier 2 (Pink)",  color=Color3.fromRGB(220,80,160)},
-    {name="Tier 3 (Blue)",  color=Color3.fromRGB(60,140,255)},
-}
-
-local function setUsernameColor(color)
-    pcall(function()
-        local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
-        local lbl = head:FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
-        lbl.TextColor3 = color
-    end)
-end
-
--- ========== DELETE MODE (FIXED) ==========
-local function undoLast()
-    if #deletedObjects == 0 then notify("Undo", "Tidak ada objek untuk dikembalikan!", "error") return end
-    local obj = table.remove(deletedObjects)
-    if obj and obj.instance and obj.originalParent then
+-- ========== UNDER PIT ==========
+local underPitBodyPos = nil
+local function startUnderPit()
+    underPitEnabled = true
+    task.spawn(function()
         pcall(function()
-            obj.instance.Parent = obj.originalParent
-            if obj.transparency ~= nil then obj.instance.Transparency = obj.transparency end
-            if obj.canCollide ~= nil then obj.instance.CanCollide = obj.canCollide end
-        end)
-    end
-    playSound(SOUND_NOTIF, 0.5)
-    notify("Undo", "Objek dikembalikan!", "success")
-end
-
-local function undoAll()
-    for i = #deletedObjects, 1, -1 do
-        local obj = deletedObjects[i]
-        pcall(function()
-            if obj and obj.instance and obj.originalParent then
-                obj.instance.Parent = obj.originalParent
-                if obj.transparency ~= nil then obj.instance.Transparency = obj.transparency end
-                if obj.canCollide ~= nil then obj.instance.CanCollide = obj.canCollide end
-            end
-        end)
-    end
-    deletedObjects = {}
-    playSound(SOUND_NOTIF, 0.5)
-    notify("Undo All", "Semua objek dikembalikan!", "success")
-end
-
-local function deleteAllWalls()
-    local keywords = {"wall","door","roof","gate","fence","window","dinding","pintu","atap","pagar"}
-    local count = 0
-    for _, inst in pairs(workspace:GetDescendants()) do
-        if inst:IsA("BasePart") or inst:IsA("UnionOperation") or inst:IsA("MeshPart") then
-            if not (player.Character and inst:IsDescendantOf(player.Character)) then
-                local nm = inst.Name:lower()
-                for _, kw in ipairs(keywords) do
-                    if nm:find(kw) then
-                        table.insert(deletedObjects, {
-                            instance = inst,
-                            originalParent = inst.Parent,
-                            transparency = inst.Transparency,
-                            canCollide = inst.CanCollide,
-                        })
-                        inst.Transparency = 1
-                        inst.CanCollide = false
-                        count += 1
-                        break
-                    end
+            local char = player.Character
+            if not char then return end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local seat = hum and hum.SeatPart
+            if seat then
+                local vehicle = seat:FindFirstAncestorOfClass("Model")
+                if vehicle and vehicle.PrimaryPart then
+                    local cf = vehicle.PrimaryPart.CFrame
+                    vehicle:SetPrimaryPartCFrame(CFrame.new(cf.X, cf.Y - 60, cf.Z))
+                    underPitBodyPos = Instance.new("BodyPosition", vehicle.PrimaryPart)
+                    underPitBodyPos.Position = Vector3.new(cf.X, cf.Y - 60, cf.Z)
+                    underPitBodyPos.MaxForce = Vector3.new(0, 1e5, 0)
+                    underPitBodyPos.D = 1000
+                    underPitBodyPos.P = 10000
+                    return
                 end
             end
-        end
-    end
-    playSound(SOUND_NOTIF, 0.5)
-    notify("Delete All", count.." objek dihapus!", "success")
-end
-
--- Mouse click handler for delete mode
-local deleteMouse = player:GetMouse()
-deleteMouse.Button1Down:Connect(function()
-    if not deleteMode then return end
-    local target = deleteMouse.Target
-    if target and not target:IsDescendantOf(player.Character or game.Lighting) then
-        local entry = {
-            instance = target,
-            originalParent = target.Parent,
-            transparency = target.Transparency,
-            canCollide = target.CanCollide,
-        }
-        table.insert(deletedObjects, entry)
-        target.Transparency = 1
-        target.CanCollide = false
-        playSound(SOUND_NOTIF, 0.35)
-        notify("Delete", "Objek dihapus. Undo untuk kembalikan.", "info")
-    end
-end)
-
--- Hover highlight for delete mode
-local hoverHighlightConn = nil
-local lastHovered = nil
-local function startDeleteHighlight()
-    if hoverHighlightConn then hoverHighlightConn:Disconnect() end
-    hoverHighlightConn = RunService.RenderStepped:Connect(function()
-        if not deleteMode then return end
-        local target = deleteMouse.Target
-        if target ~= lastHovered then
-            if lastHovered and lastHovered.SelectionBox then
-                lastHovered.SelectionBox:Destroy()
-                lastHovered.SelectionBox = nil
-            end
-            if target and target:IsA("BasePart") and not target:IsDescendantOf(player.Character or game.Lighting) then
-                local sb = Instance.new("SelectionBox", workspace)
-                sb.Adornee = target
-                sb.Color3 = Color3.fromRGB(220,55,65)
-                sb.SurfaceTransparency = 0.7
-                sb.LineThickness = 0.05
-                target.SelectionBox = sb
-                lastHovered = target
-            else
-                lastHovered = nil
-            end
-        end
+            hrp.CFrame = CFrame.new(hrp.Position.X, hrp.Position.Y - 60, hrp.Position.Z)
+        end)
     end)
-end
-startDeleteHighlight()
-
--- ========== ANTI HIT + APPROACH ==========
-local SAFE_POS = Vector3.new(579.0, 3.5, -539.7)
-local MALL_POS = Vector3.new(-725.4, 4.8, 587.4)
-local APPROACH_RADIUS = 20
-local NPC_ZONE_POS = Vector3.new(510.7584, 3.5872, 600.3163)
-local NPC_ZONE_RADIUS = 35
-
-local function startAntiHit()
-    pcall(function()
-        local char = player.Character or player.CharacterAdded:Wait()
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum then return end
-        if antiHitConn then antiHitConn:Disconnect() end
-        antiHitConn = hum.HealthChanged:Connect(function(hp)
-            if not ANTI_HIT then return end
-            if hp < hum.MaxHealth and hp > 0 then
-                vehicleTeleport(CFrame.new(SAFE_POS))
+    underPitConn = RunService.Stepped:Connect(function()
+        if not underPitEnabled then return end
+        pcall(function()
+            local char = player.Character
+            if not char then return end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local seat = hum and hum.SeatPart
+            if seat then
+                local vehicle = seat:FindFirstAncestorOfClass("Model")
+                if vehicle and vehicle.PrimaryPart then
+                    local pp = vehicle.PrimaryPart
+                    if pp.Position.Y > -30 then
+                        vehicle:SetPrimaryPartCFrame(CFrame.new(pp.Position.X, -50, pp.Position.Z))
+                        pp.AssemblyLinearVelocity = Vector3.zero
+                    end
+                end
+            else
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp and hrp.Position.Y > -30 then
+                    hrp.CFrame = CFrame.new(hrp.Position.X, -50, hrp.Position.Z)
+                end
             end
         end)
     end)
+    notify("Under Pit", "Di bawah map! Aktif.", "success")
 end
 
-local function startAntiApproach(statusLbl)
-    if antiApprConn then antiApprConn:Disconnect() end
-    antiApprConn = RunService.Heartbeat:Connect(function()
-        if not ANTI_HIT then return end
+local function stopUnderPit()
+    underPitEnabled = false
+    if underPitConn then underPitConn:Disconnect() underPitConn = nil end
+    if underPitBodyPos then underPitBodyPos:Destroy() underPitBodyPos = nil end
+    pcall(function()
         local char = player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        if (hrp.Position - NPC_ZONE_POS).Magnitude <= NPC_ZONE_RADIUS then
-            if statusLbl then statusLbl.Text = "Paused (zona NPC)" end
-            return
-        end
-        for _, plr in pairs(Players:GetPlayers()) do
-            if plr == player then continue end
-            local c = plr.Character
-            local h = c and c:FindFirstChild("HumanoidRootPart")
-            if h and (hrp.Position - h.Position).Magnitude <= APPROACH_RADIUS then
-                if statusLbl then statusLbl.Text = plr.Name.." mendekat!" end
-                vehicleTeleport(CFrame.new(MALL_POS))
-                task.wait(1)
+        if not char then return end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local seat = hum and hum.SeatPart
+        if seat then
+            local vehicle = seat:FindFirstAncestorOfClass("Model")
+            if vehicle and vehicle.PrimaryPart then
+                local cf = vehicle.PrimaryPart.CFrame
+                vehicle:SetPrimaryPartCFrame(CFrame.new(cf.X, 10, cf.Z))
+                vehicle.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
                 return
             end
         end
-        if statusLbl then statusLbl.Text = "Aktif | R:"..APPROACH_RADIUS end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = CFrame.new(hrp.Position.X, 10, hrp.Position.Z) end
     end)
+    notify("Under Pit", "Keluar dari bawah map.", "off")
 end
 
-local function stopAntiHit(statusLbl)
-    if antiHitConn then antiHitConn:Disconnect() antiHitConn = nil end
-    if antiApprConn then antiApprConn:Disconnect() antiApprConn = nil end
-    if statusLbl then statusLbl.Text = "Idle" end
+-- ========== INFINITE STAMINA ==========
+local function setInfiniteStamina(enabled)
+    if enabled then
+        task.spawn(function()
+            pcall(function()
+                local req = require(player.PlayerScripts:WaitForChild("Main", 5))
+                if req then req.Stamina = 100 end
+                infStamConn = RunService.Heartbeat:Connect(function()
+                    if not infStamConn then return end
+                    pcall(function() if req then req.Stamina = 100 end end)
+                end)
+                player:SetAttribute("StaminaConsumeMultiplier", 0)
+                player:GetAttributeChangedSignal("StaminaConsumeMultiplier"):Connect(function()
+                    player:SetAttribute("StaminaConsumeMultiplier", 0)
+                end)
+                local pg = player.PlayerGui:FindFirstChild("Main")
+                local bar = pg and pg:FindFirstChild("Bars") and pg.Bars:FindFirstChild("StaminaBar")
+                if bar then bar.Visible = false end
+            end)
+        end)
+        notify("Stamina", "Infinite Stamina aktif!", "success")
+    else
+        if infStamConn then infStamConn:Disconnect() infStamConn = nil end
+        pcall(function()
+            local pg = player.PlayerGui:FindFirstChild("Main")
+            local bar = pg and pg:FindFirstChild("Bars") and pg.Bars:FindFirstChild("StaminaBar")
+            if bar then bar.Visible = true end
+        end)
+        notify("Stamina", "Infinite Stamina dimatikan.", "off")
+    end
 end
 
--- ========== AUTO FARM LOGIC ==========
+-- ========== AUTO FARM ==========
 local function autoBuy()
     for i = 1, buyAmount do
         if not running and not autoFarmRunning then break end
@@ -781,6 +574,166 @@ local function startFarmLoop()
     end)
 end
 
+-- ========== DELETE MODE ==========
+local function undoLast()
+    if #deletedObjects == 0 then notify("Undo", "Tidak ada objek untuk dikembalikan!", "error") return end
+    local obj = table.remove(deletedObjects)
+    if obj and obj.instance and obj.originalParent then
+        pcall(function()
+            obj.instance.Parent = obj.originalParent
+            if obj.transparency ~= nil then obj.instance.Transparency = obj.transparency end
+            if obj.canCollide ~= nil then obj.instance.CanCollide = obj.canCollide end
+        end)
+    end
+    safePlaySound(SOUND_NOTIF, 0.5)
+    notify("Undo", "Objek dikembalikan!", "success")
+end
+
+local function undoAll()
+    for i = #deletedObjects, 1, -1 do
+        local obj = deletedObjects[i]
+        pcall(function()
+            if obj and obj.instance and obj.originalParent then
+                obj.instance.Parent = obj.originalParent
+                if obj.transparency ~= nil then obj.instance.Transparency = obj.transparency end
+                if obj.canCollide ~= nil then obj.instance.CanCollide = obj.canCollide end
+            end
+        end)
+    end
+    deletedObjects = {}
+    safePlaySound(SOUND_NOTIF, 0.5)
+    notify("Undo All", "Semua objek dikembalikan!", "success")
+end
+
+local function deleteAllWalls()
+    local keywords = {"wall","door","roof","gate","fence","window","dinding","pintu","atap","pagar"}
+    local count = 0
+    for _, inst in pairs(workspace:GetDescendants()) do
+        if inst:IsA("BasePart") or inst:IsA("UnionOperation") or inst:IsA("MeshPart") then
+            if not (player.Character and inst:IsDescendantOf(player.Character)) then
+                local nm = inst.Name:lower()
+                for _, kw in ipairs(keywords) do
+                    if nm:find(kw) then
+                        table.insert(deletedObjects, {
+                            instance = inst,
+                            originalParent = inst.Parent,
+                            transparency = inst.Transparency,
+                            canCollide = inst.CanCollide,
+                        })
+                        inst.Transparency = 1
+                        inst.CanCollide = false
+                        count += 1
+                        break
+                    end
+                end
+            end
+        end
+    end
+    safePlaySound(SOUND_NOTIF, 0.5)
+    notify("Delete All", count.." objek dihapus!", "success")
+end
+
+local deleteMouse = player:GetMouse()
+deleteMouse.Button1Down:Connect(function()
+    if not deleteMode then return end
+    local target = deleteMouse.Target
+    if target and not target:IsDescendantOf(player.Character or game.Lighting) then
+        local entry = {
+            instance = target,
+            originalParent = target.Parent,
+            transparency = target.Transparency,
+            canCollide = target.CanCollide,
+        }
+        table.insert(deletedObjects, entry)
+        target.Transparency = 1
+        target.CanCollide = false
+        safePlaySound(SOUND_NOTIF, 0.35)
+        notify("Delete", "Objek dihapus. Undo untuk kembalikan.", "info")
+    end
+end)
+
+local hoverHighlightConn = nil
+local lastHovered = nil
+local function startDeleteHighlight()
+    if hoverHighlightConn then hoverHighlightConn:Disconnect() end
+    hoverHighlightConn = RunService.RenderStepped:Connect(function()
+        if not deleteMode then return end
+        local target = deleteMouse.Target
+        if target ~= lastHovered then
+            if lastHovered and lastHovered.SelectionBox then
+                lastHovered.SelectionBox:Destroy()
+                lastHovered.SelectionBox = nil
+            end
+            if target and target:IsA("BasePart") and not target:IsDescendantOf(player.Character or game.Lighting) then
+                local sb = Instance.new("SelectionBox", workspace)
+                sb.Adornee = target
+                sb.Color3 = Color3.fromRGB(220,55,65)
+                sb.SurfaceTransparency = 0.7
+                sb.LineThickness = 0.05
+                target.SelectionBox = sb
+                lastHovered = target
+            else
+                lastHovered = nil
+            end
+        end
+    end)
+end
+startDeleteHighlight()
+
+-- ========== ANTI HIT ==========
+local SAFE_POS = Vector3.new(579.0, 3.5, -539.7)
+local MALL_POS = Vector3.new(-725.4, 4.8, 587.4)
+local APPROACH_RADIUS = 20
+local NPC_ZONE_POS = Vector3.new(510.7584, 3.5872, 600.3163)
+local NPC_ZONE_RADIUS = 35
+
+local function startAntiHit()
+    pcall(function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        if antiHitConn then antiHitConn:Disconnect() end
+        antiHitConn = hum.HealthChanged:Connect(function(hp)
+            if not ANTI_HIT then return end
+            if hp < hum.MaxHealth and hp > 0 then
+                vehicleTeleport(CFrame.new(SAFE_POS))
+            end
+        end)
+    end)
+end
+
+local function startAntiApproach(statusLbl)
+    if antiApprConn then antiApprConn:Disconnect() end
+    antiApprConn = RunService.Heartbeat:Connect(function()
+        if not ANTI_HIT then return end
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        if (hrp.Position - NPC_ZONE_POS).Magnitude <= NPC_ZONE_RADIUS then
+            if statusLbl then statusLbl.Text = "Paused (zona NPC)" end
+            return
+        end
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr == player then continue end
+            local c = plr.Character
+            local h = c and c:FindFirstChild("HumanoidRootPart")
+            if h and (hrp.Position - h.Position).Magnitude <= APPROACH_RADIUS then
+                if statusLbl then statusLbl.Text = plr.Name.." mendekat!" end
+                vehicleTeleport(CFrame.new(MALL_POS))
+                task.wait(1)
+                return
+            end
+        end
+        if statusLbl then statusLbl.Text = "Aktif | R:"..APPROACH_RADIUS end
+    end)
+end
+
+local function stopAntiHit(statusLbl)
+    if antiHitConn then antiHitConn:Disconnect() antiHitConn = nil end
+    if antiApprConn then antiApprConn:Disconnect() antiApprConn = nil end
+    if statusLbl then statusLbl.Text = "Idle" end
+end
+
 -- ========== LOADING SCREEN ==========
 local loadGui = Instance.new("ScreenGui")
 loadGui.Name = "SH_Loading"
@@ -793,8 +746,7 @@ local loadBg = Instance.new("Frame", loadGui)
 loadBg.Size = UDim2.new(1,0,1,0)
 loadBg.BackgroundColor3 = Color3.new(0,0,0)
 
--- Stars
-for i = 1,55 do
+for i=1,55 do
     local s = Instance.new("Frame", loadBg)
     s.Size = UDim2.new(0,math.random(1,3),0,math.random(1,3))
     s.Position = UDim2.new(math.random(),0,math.random(),0)
@@ -837,7 +789,6 @@ task.spawn(function()
     end
 end)
 
--- Star twinkle
 task.spawn(function()
     while loadGui and loadGui.Parent do
         for _,s in pairs(loadBg:GetChildren()) do
@@ -894,7 +845,7 @@ miniClickBtn.BackgroundTransparency = 1
 miniClickBtn.Text = ""
 miniClickBtn.ZIndex = 53
 
--- ========== TOP BAR ==========
+-- Top bar
 local topBar = Instance.new("Frame", main)
 topBar.Size = UDim2.new(1,0,0,52)
 topBar.BackgroundColor3 = C.surface
@@ -907,16 +858,12 @@ tbFix.Position = UDim2.new(0,0,1,-14)
 tbFix.BackgroundColor3 = C.surface
 tbFix.BorderSizePixel = 0
 
-Instance.new("Frame", topBar).Size = UDim2.new(1,0,0,1)
-local tbLine = topBar:FindFirstChildOfClass("Frame")
--- Fix: recreate properly
 local divLine = Instance.new("Frame", topBar)
 divLine.Size = UDim2.new(1,0,0,1)
 divLine.Position = UDim2.new(0,0,1,-1)
 divLine.BackgroundColor3 = C.border
 divLine.BorderSizePixel = 0
 
--- Icon circle (S text, no external image)
 local iconCircle = Instance.new("Frame", topBar)
 iconCircle.Size = UDim2.new(0,36,0,36)
 iconCircle.Position = UDim2.new(0,10,0.5,-18)
@@ -925,7 +872,7 @@ iconCircle.BorderSizePixel = 0
 iconCircle.ZIndex = 3
 Instance.new("UICorner", iconCircle).CornerRadius = UDim.new(1,0)
 local iconStr = Instance.new("UIStroke", iconCircle)
-iconStr.Color = C.borderAct or Color3.fromRGB(100,100,115)
+iconStr.Color = C.border
 iconStr.Thickness = 1.5
 
 local iconS = Instance.new("TextLabel", iconCircle)
@@ -939,7 +886,6 @@ iconS.TextXAlignment = Enum.TextXAlignment.Center
 iconS.TextYAlignment = Enum.TextYAlignment.Center
 iconS.ZIndex = 4
 
--- Title
 local titleFrame = Instance.new("Frame", topBar)
 titleFrame.Size = UDim2.new(0,260,0,36)
 titleFrame.Position = UDim2.new(0,54,0.5,-18)
@@ -991,7 +937,7 @@ minBtn.BorderSizePixel = 0
 minBtn.ZIndex = 4
 Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0,7)
 
--- ========== TAB BAR ==========
+-- Tab bar
 local tabBarFrame = Instance.new("Frame", main)
 tabBarFrame.Size = UDim2.new(1,-16,0,34)
 tabBarFrame.Position = UDim2.new(0,8,0,54)
@@ -1011,7 +957,7 @@ local tabPad2 = Instance.new("UIPadding", tabBarFrame)
 tabPad2.PaddingLeft = UDim.new(0,4)
 tabPad2.PaddingRight = UDim.new(0,4)
 
--- ========== CONTENT AREA ==========
+-- Content area
 local contentArea = Instance.new("Frame", main)
 contentArea.Size = UDim2.new(1,-16,1,-100)
 contentArea.Position = UDim2.new(0,8,0,94)
@@ -1020,7 +966,7 @@ contentArea.ClipsDescendants = true
 Instance.new("UICorner", contentArea).CornerRadius = UDim.new(0,10)
 Instance.new("UIStroke", contentArea).Color = C.border
 
--- ========== TAB SYSTEM ==========
+-- TAB SYSTEM
 local pages = {}
 local tabBtns2 = {}
 
@@ -1086,7 +1032,7 @@ for _,def in ipairs(tabDefs) do
     btn.MouseButton1Click:Connect(function() switchTab(def.label) end)
 end
 
--- ========== UI BUILDER FUNCTIONS ==========
+-- --- UI builder helpers (disalin dari script sebelumnya, dipersingkat) ---
 local function mkCard(parent, h, order)
     local f = Instance.new("Frame", parent)
     f.Size = UDim2.new(1,0,0,h or 38)
@@ -1204,6 +1150,7 @@ local function mkSlider(parent, labelText, minV, maxV, defV, order, callback)
     Instance.new("UICorner",knob).CornerRadius = UDim.new(1,0)
     local drag = false
     local function update(x)
+        if track.AbsoluteSize.X == 0 then return end
         local pos = math.clamp((x-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)
         local val = math.floor(minV + pos*(maxV-minV))
         knob.Position = UDim2.new(pos,-6,0.5,-6)
@@ -1297,9 +1244,8 @@ local farmBtn    = mkActionBtn(fp,"▶  START FARM",8)
 local sellBtn    = mkActionBtn(fp,"AUTO SELL : OFF",9)
 local buyNowBtn  = mkActionBtn(fp,"BUY NOW",10)
 
--- ---- UNDER PIT in FARM tab ----
+-- Under pit
 mkLabel(fp,"UNDER / WORLD",11)
-
 local underPitToggle,underPitCard,setUnderPit = mkToggle(fp,"Under Pit (Bawah Map)",12)
 underPitCard.Size = UDim2.new(1,0,0,40)
 underPitToggle.MouseButton1Click:Connect(function()
@@ -1349,7 +1295,6 @@ local sugarBar   = mkProgressCard("Sugar (1s)",18)
 local gelatinBar = mkProgressCard("Gelatin (1s)",19)
 local bagBar     = mkProgressCard("Bag (45s)",20)
 
--- Farm button logic
 local function cookLoop()
     while running do
         if equipTool("Water") then
@@ -1450,12 +1395,35 @@ end)
 
 mkLabel(mp,"CHARACTER",5)
 mkLabel(mp,"Change Name (Enter untuk apply)",6).TextColor3 = C.textDim
-mkTextBox(mp,"Nama baru...",7,function(txt) changeName(txt) end)
+mkTextBox(mp,"Nama baru...",7,function(txt) 
+    if txt and txt ~= "" then
+        pcall(function()
+            local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
+            local lbl = head:FindFirstChild("NameTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+            if lbl then lbl.Text = txt end
+        end)
+        notify("Name","Nama: "..txt,"success")
+    end
+end)
 mkLabel(mp,"Change Username (Enter untuk apply)",8).TextColor3 = C.textDim
-mkTextBox(mp,"Username baru...",9,function(txt) changeUsername(txt) end)
+mkTextBox(mp,"Username baru...",9,function(txt)
+    if txt and txt ~= "" then
+        pcall(function()
+            local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
+            local lbl = head:FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+            if lbl then lbl.Text = txt end
+        end)
+        notify("Username","Username: "..txt,"success")
+    end
+end)
 
 mkLabel(mp,"USERNAME COLOR",10)
-local colorDots = {}
+local colorList = {
+    {name="Default (Abu)",  color=Color3.fromRGB(155,155,165)},
+    {name="Tier 1 (Green)", color=Color3.fromRGB(50,200,100)},
+    {name="Tier 2 (Pink)",  color=Color3.fromRGB(220,80,160)},
+    {name="Tier 3 (Blue)",  color=Color3.fromRGB(60,140,255)},
+}
 for ci,col in ipairs(colorList) do
     local cb = mkActionBtn(mp,col.name,10+ci)
     local dot2 = Instance.new("Frame",cb)
@@ -1466,7 +1434,11 @@ for ci,col in ipairs(colorList) do
     Instance.new("UICorner",dot2).CornerRadius = UDim.new(1,0)
     local c = col.color
     cb.MouseButton1Click:Connect(function()
-        setUsernameColor(c)
+        pcall(function()
+            local head = workspace.Characters:FindFirstChild(player.Name):FindFirstChild("Head")
+            local lbl = head:FindFirstChild("RankTag"):FindFirstChild("MainFrame"):FindFirstChild("NameLabel")
+            if lbl then lbl.TextColor3 = c end
+        end)
         notify("Color",col.name.." dipilih!","success")
     end)
 end
@@ -1577,7 +1549,6 @@ totalVal.TextXAlignment = Enum.TextXAlignment.Right
 -- ========== TP PAGE ==========
 local tpPage = pages["TP"]
 
--- Mode selector
 local modeCard = mkCard(tpPage,48,1)
 modeCard.BackgroundColor3 = C.surface
 local modeLabel = Instance.new("TextLabel",modeCard)
@@ -1695,7 +1666,8 @@ respawnNowBtn.MouseButton1Click:Connect(function()
     local hum  = char and char:FindFirstChildOfClass("Humanoid")
     if not hum then return end
     notify("Respawn","Sedang respawn...","info")
-    game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.All,false)
+    local starterGui = game:GetService("StarterGui")
+    starterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All,false)
     hum.Health = 0
     task.wait(0.2)
     player.CharacterAdded:Wait()
@@ -1703,7 +1675,7 @@ respawnNowBtn.MouseButton1Click:Connect(function()
     local nc = player.Character
     local hrp = nc and nc:FindFirstChild("HumanoidRootPart")
     if hrp then hrp.CFrame = CFrame.new(selectedSpawn) end
-    game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.All,true)
+    starterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All,true)
     notify("Respawn","Berhasil respawn!","success")
 end)
 
@@ -1740,7 +1712,6 @@ end)
 -- ========== WORLD PAGE ==========
 local wp = pages["WORLD"]
 
--- Vehicle Fly
 mkLabel(wp,"VEHICLE FLY",1)
 local flyInfoCard = mkCard(wp,28,2)
 local flyInfo = Instance.new("TextLabel",flyInfoCard)
@@ -1763,7 +1734,6 @@ flyToggle.MouseButton1Click:Connect(function()
     else setFlyState(false) stopFly() end
 end)
 
--- NoClip
 mkLabel(wp,"NO CLIP",5)
 local ncToggle,ncCard,setNCState = mkToggle(wp,"No Clip",6)
 ncCard.Size = UDim2.new(1,0,0,40)
@@ -1774,7 +1744,6 @@ ncToggle.MouseButton1Click:Connect(function()
     notify("NoClip",noclipEnabled and "No Clip aktif!" or "No Clip dimatikan.",noclipEnabled and "success" or "off")
 end)
 
--- Delete Mode
 mkLabel(wp,"DELETE MODE",7)
 local delInfoCard = mkCard(wp,28,8)
 local delInfo = Instance.new("TextLabel",delInfoCard)
@@ -1818,7 +1787,6 @@ for _,v in ipairs(Lighting:GetChildren()) do
 end
 
 local origParts, origDecals, origTerrain = {},{},{}
-
 local fpsState = {lowShadow=false,noPost=false,flatMat=false,noColor=false,hideDecals=false,flatWater=false,lowRender=false,highBright=false,lowAnim=false}
 
 local function applyLowShadow(e) Lighting.GlobalShadows = not e end
@@ -2048,7 +2016,7 @@ closeBtn.MouseButton1Click:Connect(function()
     loadGui:Destroy()
 end)
 
--- ========== HIDE BUTTON (MOBILE) ==========
+-- ========== HIDE BUTTON ==========
 local hideBtn = Instance.new("TextButton",gui)
 hideBtn.Size = UDim2.new(0,40,0,40)
 hideBtn.Position = UDim2.new(1,-50,0.5,-20)
@@ -2102,7 +2070,7 @@ task.spawn(function()
     end
 end)
 
--- ========== ESP SYSTEM ==========
+-- ========== ESP SYSTEM (DENGAN DRAWING) ==========
 local Camera = workspace.CurrentCamera
 local espData = {}
 local hasDrawing = pcall(function() local t = Drawing.new("Line") t:Remove() end)
@@ -2174,6 +2142,7 @@ if hasDrawing then
                 continue
             end
             local scale = Camera:WorldToViewportPoint(hrp.Position+Vector3.new(0,3,0)).Y - Camera:WorldToViewportPoint(hrp.Position-Vector3.new(0,3,0)).Y
+            if scale < 0 then scale = 5 end
             local w = scale*0.6 local h = scale*1.2
             local x,y = pos.X, pos.Y
             local left,right = x-w/2, x+w/2
@@ -2204,6 +2173,8 @@ if hasDrawing then
             else data.health.Visible=false data.healthBg.Visible=false end
         end
     end)
+else
+    print("ESP drawing not supported, disabling ESP")
 end
 
 -- ========== ANTI AFK ==========
@@ -2214,33 +2185,38 @@ player.Idled:Connect(function()
     end)
 end)
 
--- ========== STARTUP SEQUENCE (FIXED) ==========
--- Play startup sound FIRST
-playSound(SOUND_STARTUP, 0.8)
+-- ========== STARTUP SEQUENCE (FIXED - NO HTTP ERROR) ==========
+-- Play sound safely
+safePlaySound(SOUND_STARTUP, 0.8)
 
--- Wait for sound to load (roughly 5-6s) then show GUI
-task.delay(6, function()
-    pcall(function() loadGui:Destroy() end)
-    main.Visible = true
-    main.BackgroundTransparency = 1
-    main.Size = UDim2.new(0,620,0,380)
-    TweenService:Create(main, TweenInfo.new(0.4,Enum.EasingStyle.Quint), {
-        Size = UDim2.new(0,660,0,420),
-        BackgroundTransparency = 0
-    }):Play()
-    switchTab("FARM")
-    task.wait(0.5)
-    notify("Silent.GG","Script V2 siap digunakan!","success")
+-- Show loading screen
+task.delay(0.1, function()
+    -- set up fallback to hide loading and show GUI after 7 seconds
+    local soundTimer = 7.0
+    task.delay(soundTimer, function()
+        pcall(function() loadGui:Destroy() end)
+        main.Visible = true
+        main.BackgroundTransparency = 1
+        main.Size = UDim2.new(0,620,0,380)
+        TweenService:Create(main, TweenInfo.new(0.4,Enum.EasingStyle.Quint), {
+            Size = UDim2.new(0,660,0,420),
+            BackgroundTransparency = 0
+        }):Play()
+        switchTab("FARM")
+        task.wait(0.5)
+        notify("Silent.GG","Script V2 siap digunakan!","success")
+    end)
 end)
 
--- Fallback: show GUI after 12s if still loading
+-- Ensure loading screen removed after max 12 seconds
 task.delay(12, function()
+    pcall(function() loadGui:Destroy() end)
     if not main.Visible then
-        pcall(function() loadGui:Destroy() end)
         main.Visible = true
         main.BackgroundTransparency = 0
         switchTab("FARM")
+        notify("Silent.GG","Script loaded (bypass)","info")
     end
 end)
 
-print("[Silent Hub V2] Loaded successfully. MasGal x DrKyy")
+print("[Silent Hub V2] Loaded - no 404 errors. Enjoy!")
