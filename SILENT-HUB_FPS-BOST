@@ -1,102 +1,61 @@
 -- ============================================================
--- SILENT HUB | FPS BOOSTER ALL DEVICE (FULL BYPASS EDITION)
--- Dark White & Grey UI | GothamBold | Anti-Cheat, Anti-Ban, Anti-Detect
+-- SILENT HUB | FPS BOOSTER ALL DEVICE (STABLE EDITION)
+-- Dark White & Grey UI | GothamBold | Anti-Cheat Bypass
 -- ============================================================
 
--- ========== ANTI DETECT & BYPASS (Layer 1 - Sebelum apapun) ==========
+-- ========== ANTI DETECT & BYPASS (Stable) ==========
 pcall(function()
-    -- 1. HOOK __NAMECALL (blokir panggilan mencurigakan)
+    -- Hook __namecall (tanpa newcclosure)
     local mt = getrawmetatable(game)
     if mt then
         setreadonly(mt, false)
         local old_nc = mt.__namecall
-        mt.__namecall = newcclosure(function(self, ...)
+        mt.__namecall = function(self, ...)
             local method = getnamecallmethod()
-            local args = {...}
-            -- Blokir FireServer yang mengandung kata deteksi
             if method == "FireServer" then
                 local str = tostring(self)
-                if str:find("Anti") or str:find("Detect") or str:find("Log") or str:find("Check") or str:find("Report") or str:find("Cheat") then
-                    return nil
-                end
-                local first = tostring(args[1])
-                if first and (first:find("Anti") or first:find("Cheat") or first:find("Exploit") or first:find("Silent")) then
+                if str:find("Anti") or str:find("Detect") or str:find("Check") or str:find("Report") then
                     return nil
                 end
             end
-            -- Blokir Kick/Ban
-            if method == "Kick" or method == "Ban" or method == "Shutdown" then
+            if method == "Kick" or method == "Ban" then
                 return nil
             end
             return old_nc(self, ...)
-        end)
+        end
         setreadonly(mt, true)
     end
 
-    -- 2. SEMBUNYIKAN FUNGSI EXECUTOR
-    local forbidden = {"getexecutorname", "identifyexecutor", "checkexecutor", "is_synapse", "is_krnl", "is_scriptware", "is_proto", "getgenv", "isexecutor", "executor", "executorname"}
-    for _, name in ipairs(forbidden) do
-        pcall(function()
-            if _G[name] then
-                _G[name] = function() return "Unknown" end
-            end
-        end)
+    -- Sembunyikan fungsi executor
+    local forbid = {"getexecutorname", "identifyexecutor", "checkexecutor", "is_synapse", "is_krnl"}
+    for _, f in ipairs(forbid) do
+        if _G[f] then _G[f] = function() return "Unknown" end end
     end
 
-    -- 3. NONAKTIFKAN DEBUG & STACK TRACE
-    local old_debug = debug
-    debug = setmetatable({}, {
-        __index = function(self, key)
-            if key == "getstack" or key == "getinfo" or key == "traceback" or key == "getupvalue" or key == "getmetatable" then
-                return function() return nil end
-            end
-            return old_debug and old_debug[key]
-        end
-    })
+    -- Nonaktifkan logging
+    pcall(function() game:GetService("LogService"):SetLogLevel(Enum.LogLevel.None) end)
 
-    -- 4. MATIKAN LOGGING GAME
-    pcall(function()
-        game:GetService("LogService"):SetLogLevel(Enum.LogLevel.None)
-    end)
-
-    -- 5. OVERRIDE GETRAWMETATABLE (sembunyikan modifikasi kita)
-    local original_getraw = getrawmetatable
-    getrawmetatable = function(self)
-        if self == game then return nil end
-        return original_getraw(self)
+    -- Override getrawmetatable (sederhana)
+    local old_raw = getrawmetatable
+    getrawmetatable = function(g)
+        if g == game then return nil end
+        return old_raw(g)
     end
-
-    -- 6. HIDE PRINT INTERNAL (opsional)
-    local old_print = print
-    print = function(...)
-        local msg = tostring({...})
-        if msg:find("Silent Hub") or msg:find("FPS booster") or msg:find("Elixir") then
-            return
-        end
-        old_print(...)
-    end
-
-    -- 7. SAMARKAN SYN / KRNL DLL (jika ada)
-    pcall(function()
-        if syn then syn = nil end
-        if secure_load then secure_load = nil end
-        if kAuto then kAuto = nil end
-    end)
 end)
 
-print("[Silent Hub] Anti-detect & bypass loaded")
-
 -- ========== SERVICES ==========
-local Lighting         = game:GetService("Lighting")
-local Players          = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
 
-local player    = Players.LocalPlayer
+-- Tunggu karakter dan GUI siap
+repeat task.wait() until player.Character
 local playerGui = player:WaitForChild("PlayerGui")
 
--- ========== GUI OBFUSCATION (nama acak) ==========
-local randomName = "SH_" .. tostring(math.random(100000, 999999)) .. "_FPS"
+-- ========== GUI OBFUSCATION ==========
+local randomName = "SH_" .. math.random(100000, 999999) .. "_FPS"
 local ScreenGuiName = randomName
 
 -- ========== COLORS ==========
@@ -129,7 +88,7 @@ local cfg = {
     physicsSleep      = true,
 }
 
-local originalData  = { parts = {}, decals = {}, terrain = {} }
+local originalData = { parts = {}, decals = {}, terrain = {} }
 local masterEnabled = false
 
 -- ========== FPS FUNCTIONS ==========
@@ -139,12 +98,12 @@ local function applyPostEffects(on)
             if v:IsA("PostEffect") then v:Destroy() end
         end
         Lighting.GlobalShadows = false
-        Lighting.FogEnd        = 9e9
-        Lighting.Brightness    = 2
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 2
     else
         Lighting.GlobalShadows = true
-        Lighting.FogEnd        = 10000
-        Lighting.Brightness    = 1
+        Lighting.FogEnd = 10000
+        Lighting.Brightness = 1
     end
 end
 
@@ -154,11 +113,11 @@ local function applyMaterials(on)
             if player.Character and inst:IsDescendantOf(player.Character) then continue end
             if on then
                 originalData.parts[inst] = { Material = inst.Material, Reflectance = inst.Reflectance }
-                inst.Material    = Enum.Material.SmoothPlastic
+                inst.Material = Enum.Material.SmoothPlastic
                 inst.Reflectance = 0
             else
                 if originalData.parts[inst] then
-                    inst.Material    = originalData.parts[inst].Material
+                    inst.Material = originalData.parts[inst].Material
                     inst.Reflectance = originalData.parts[inst].Reflectance
                 end
             end
@@ -187,20 +146,20 @@ local function applyTerrain(on)
     if not t then return end
     if on then
         originalData.terrain = {
-            WaterWaveSize     = t.WaterWaveSize,
-            WaterWaveSpeed    = t.WaterWaveSpeed,
-            WaterReflectance  = t.WaterReflectance,
+            WaterWaveSize = t.WaterWaveSize,
+            WaterWaveSpeed = t.WaterWaveSpeed,
+            WaterReflectance = t.WaterReflectance,
             WaterTransparency = t.WaterTransparency,
         }
-        t.WaterWaveSize     = 0
-        t.WaterWaveSpeed    = 0
-        t.WaterReflectance  = 0
+        t.WaterWaveSize = 0
+        t.WaterWaveSpeed = 0
+        t.WaterReflectance = 0
         t.WaterTransparency = 1
     else
-        if originalData.terrain.WaterWaveSize ~= nil then
-            t.WaterWaveSize     = originalData.terrain.WaterWaveSize
-            t.WaterWaveSpeed    = originalData.terrain.WaterWaveSpeed
-            t.WaterReflectance  = originalData.terrain.WaterReflectance
+        if originalData.terrain.WaterWaveSize then
+            t.WaterWaveSize = originalData.terrain.WaterWaveSize
+            t.WaterWaveSpeed = originalData.terrain.WaterWaveSpeed
+            t.WaterReflectance = originalData.terrain.WaterReflectance
             t.WaterTransparency = originalData.terrain.WaterTransparency
         end
     end
@@ -230,7 +189,7 @@ workspace.DescendantAdded:Connect(function(inst)
     if not masterEnabled then return end
     if player.Character and inst:IsDescendantOf(player.Character) then return end
     if cfg.flatMaterials and inst:IsA("BasePart") then
-        inst.Material    = Enum.Material.SmoothPlastic
+        inst.Material = Enum.Material.SmoothPlastic
         inst.Reflectance = 0
     end
     if cfg.hideDecals and (inst:IsA("Texture") or inst:IsA("Decal")) then
@@ -238,302 +197,347 @@ workspace.DescendantAdded:Connect(function(inst)
     end
 end)
 
--- ========== SCREEN GUI (dengan prioritas CoreGui & nama acak) ==========
+-- ========== SCREEN GUI ==========
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name           = ScreenGuiName
-screenGui.ResetOnSpawn   = false
+screenGui.Name = ScreenGuiName
+screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.DisplayOrder   = 999
+screenGui.DisplayOrder = 999
 
--- Parent ke CoreGui jika memungkinkan
-local guiOk = false
-if not guiOk then pcall(function() screenGui.Parent = game:GetService("CoreGui") guiOk = true end) end
-if not guiOk then pcall(function() if gethui then screenGui.Parent = gethui() guiOk = true end end) end
-if not guiOk then screenGui.Parent = playerGui end
+-- Prioritaskan CoreGui
+local success = pcall(function() screenGui.Parent = game:GetService("CoreGui") end)
+if not success then
+    pcall(function()
+        if gethui then screenGui.Parent = gethui() else screenGui.Parent = playerGui end
+    end)
+end
 
--- ========== TWEEN HELPERS ==========
-local function tw(inst, info, props)
-    TweenService:Create(inst, info, props):Play()
+-- ========== TWEEN HELPER ==========
+local function tw(obj, info, props)
+    local tween = TweenService:Create(obj, info, props)
+    tween:Play()
+    return tween
 end
 local TI_FAST = TweenInfo.new(0.18, Enum.EasingStyle.Quad)
-local TI_MED  = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local TI_MED = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 -- ========== MAIN FRAME ==========
-local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Name             = "MainFrame"
-mainFrame.Size             = UDim2.new(0, 300, 0, 0)   -- starts collapsed
-mainFrame.Position         = UDim2.new(0.5, -150, 0.5, 0)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 300, 0, 0)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, 0)
 mainFrame.BackgroundColor3 = C.bg
-mainFrame.BorderSizePixel  = 0
-mainFrame.Active           = true
-mainFrame.Draggable        = true
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
 mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
 
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
 
-local mainStroke = Instance.new("UIStroke", mainFrame)
-mainStroke.Color     = C.stroke
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = C.stroke
 mainStroke.Thickness = 1
+mainStroke.Parent = mainFrame
 
--- ============================================================
--- TITLE BAR
--- ============================================================
-local titleBar = Instance.new("Frame", mainFrame)
-titleBar.Name             = "TitleBar"
-titleBar.Size             = UDim2.new(1, 0, 0, 50)
+-- ========== TITLE BAR ==========
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 50)
 titleBar.BackgroundColor3 = C.titleBg
-titleBar.BorderSizePixel  = 0
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
 
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
 
--- patch bottom corners
-local titleFix = Instance.new("Frame", titleBar)
-titleFix.Size             = UDim2.new(1, 0, 0, 12)
-titleFix.Position         = UDim2.new(0, 0, 1, -12)
+local titleFix = Instance.new("Frame")
+titleFix.Size = UDim2.new(1, 0, 0, 12)
+titleFix.Position = UDim2.new(0, 0, 1, -12)
 titleFix.BackgroundColor3 = C.titleBg
-titleFix.BorderSizePixel  = 0
+titleFix.BorderSizePixel = 0
+titleFix.Parent = titleBar
 
-local titleStroke = Instance.new("UIStroke", titleBar)
-titleStroke.Color     = C.stroke
+local titleStroke = Instance.new("UIStroke")
+titleStroke.Color = C.stroke
 titleStroke.Thickness = 1
+titleStroke.Parent = titleBar
 
--- SILENT HUB label (RichText)
-local titleLabel = Instance.new("TextLabel", titleBar)
-titleLabel.Size               = UDim2.new(1, 0, 0, 22)
-titleLabel.Position           = UDim2.new(0, 0, 0, 8)
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 22)
+titleLabel.Position = UDim2.new(0, 0, 0, 8)
 titleLabel.BackgroundTransparency = 1
-titleLabel.RichText           = true
-titleLabel.Text               = '<font color="rgb(230,230,235)"><b>SILENT </b></font><font color="rgb(120,120,135)"><b>HUB</b></font>'
-titleLabel.TextSize           = 15
-titleLabel.Font               = Enum.Font.GothamBold
-titleLabel.TextXAlignment     = Enum.TextXAlignment.Center
+titleLabel.RichText = true
+titleLabel.Text = '<font color="rgb(230,230,235)"><b>SILENT </b></font><font color="rgb(120,120,135)"><b>HUB</b></font>'
+titleLabel.TextSize = 15
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+titleLabel.Parent = titleBar
 
-local titleDesc = Instance.new("TextLabel", titleBar)
-titleDesc.Size               = UDim2.new(1, 0, 0, 13)
-titleDesc.Position           = UDim2.new(0, 0, 0, 30)
+local titleDesc = Instance.new("TextLabel")
+titleDesc.Size = UDim2.new(1, 0, 0, 13)
+titleDesc.Position = UDim2.new(0, 0, 0, 30)
 titleDesc.BackgroundTransparency = 1
-titleDesc.Text               = "FPS BOOSTER ALL DEVICE"
-titleDesc.TextColor3         = C.textDim
-titleDesc.TextSize           = 9
-titleDesc.Font               = Enum.Font.GothamBold
-titleDesc.TextXAlignment     = Enum.TextXAlignment.Center
+titleDesc.Text = "FPS BOOSTER ALL DEVICE"
+titleDesc.TextColor3 = C.textDim
+titleDesc.TextSize = 9
+titleDesc.Font = Enum.Font.GothamBold
+titleDesc.TextXAlignment = Enum.TextXAlignment.Center
+titleDesc.Parent = titleBar
 
--- ON/OFF master button
-local masterBtn = Instance.new("TextButton", titleBar)
-masterBtn.Size             = UDim2.new(0, 38, 0, 20)
-masterBtn.Position         = UDim2.new(0, 10, 0.5, -10)
+-- Master button
+local masterBtn = Instance.new("TextButton")
+masterBtn.Size = UDim2.new(0, 38, 0, 20)
+masterBtn.Position = UDim2.new(0, 10, 0.5, -10)
 masterBtn.BackgroundColor3 = C.toggleOff
-masterBtn.Text             = "OFF"
-masterBtn.TextColor3       = C.offRed
-masterBtn.TextSize         = 10
-masterBtn.Font             = Enum.Font.GothamBold
-masterBtn.BorderSizePixel  = 0
-Instance.new("UICorner", masterBtn).CornerRadius = UDim.new(0, 5)
+masterBtn.Text = "OFF"
+masterBtn.TextColor3 = C.offRed
+masterBtn.TextSize = 10
+masterBtn.Font = Enum.Font.GothamBold
+masterBtn.BorderSizePixel = 0
+masterBtn.Parent = titleBar
+local masterCorner = Instance.new("UICorner")
+masterCorner.CornerRadius = UDim.new(0, 5)
+masterCorner.Parent = masterBtn
 
--- MINIMIZE button (S)
-local minBtn = Instance.new("TextButton", titleBar)
-minBtn.Size             = UDim2.new(0, 24, 0, 24)
-minBtn.Position         = UDim2.new(1, -58, 0.5, -12)
+-- Minimize button (S)
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 24, 0, 24)
+minBtn.Position = UDim2.new(1, -58, 0.5, -12)
 minBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
-minBtn.Text             = "S"
-minBtn.TextColor3       = C.accentDim
-minBtn.TextSize         = 11
-minBtn.Font             = Enum.Font.GothamBold
-minBtn.BorderSizePixel  = 0
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 5)
+minBtn.Text = "S"
+minBtn.TextColor3 = C.accentDim
+minBtn.TextSize = 11
+minBtn.Font = Enum.Font.GothamBold
+minBtn.BorderSizePixel = 0
+minBtn.Parent = titleBar
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 5)
+minCorner.Parent = minBtn
 
--- CLOSE button (X)
-local closeBtn = Instance.new("TextButton", titleBar)
-closeBtn.Size             = UDim2.new(0, 24, 0, 24)
-closeBtn.Position         = UDim2.new(1, -30, 0.5, -12)
+-- Close button (X)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 24, 0, 24)
+closeBtn.Position = UDim2.new(1, -30, 0.5, -12)
 closeBtn.BackgroundColor3 = Color3.fromRGB(80, 38, 38)
-closeBtn.Text             = "X"
-closeBtn.TextColor3       = Color3.fromRGB(220, 120, 120)
-closeBtn.TextSize         = 11
-closeBtn.Font             = Enum.Font.GothamBold
-closeBtn.BorderSizePixel  = 0
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 5)
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(220, 120, 120)
+closeBtn.TextSize = 11
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = titleBar
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 5)
+closeCorner.Parent = closeBtn
 
--- ============================================================
--- SCROLL CONTENT
--- ============================================================
-local content = Instance.new("ScrollingFrame", mainFrame)
-content.Size                = UDim2.new(1, 0, 1, -50)
-content.Position            = UDim2.new(0, 0, 0, 50)
+-- ========== CONTENT SCROLL ==========
+local content = Instance.new("ScrollingFrame")
+content.Size = UDim2.new(1, 0, 1, -50)
+content.Position = UDim2.new(0, 0, 0, 50)
 content.BackgroundTransparency = 1
-content.BorderSizePixel     = 0
-content.ScrollBarThickness  = 2
-content.ScrollBarImageColor3= C.stroke
-content.CanvasSize          = UDim2.new(0, 0, 0, 0)
+content.BorderSizePixel = 0
+content.ScrollBarThickness = 2
+content.ScrollBarImageColor3 = C.stroke
+content.CanvasSize = UDim2.new(0, 0, 0, 0)
 content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+content.Parent = mainFrame
 
-local cLayout = Instance.new("UIListLayout", content)
-cLayout.Padding   = UDim.new(0, 0)
-cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 0)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = content
 
-local cPad = Instance.new("UIPadding", content)
-cPad.PaddingLeft   = UDim.new(0, 12)
-cPad.PaddingRight  = UDim.new(0, 12)
-cPad.PaddingTop    = UDim.new(0, 10)
-cPad.PaddingBottom = UDim.new(0, 10)
+local pad = Instance.new("UIPadding")
+pad.PaddingLeft = UDim.new(0, 12)
+pad.PaddingRight = UDim.new(0, 12)
+pad.PaddingTop = UDim.new(0, 10)
+pad.PaddingBottom = UDim.new(0, 10)
+pad.Parent = content
 
--- ============================================================
--- UI BUILDER HELPERS
--- ============================================================
+-- ========== UI BUILDERS ==========
 local function makeSpacer(h, lo)
-    local s = Instance.new("Frame", content)
-    s.Size               = UDim2.new(1, 0, 0, h)
+    local s = Instance.new("Frame")
+    s.Size = UDim2.new(1, 0, 0, h)
     s.BackgroundTransparency = 1
-    s.LayoutOrder        = lo
+    s.LayoutOrder = lo
+    s.Parent = content
 end
 
 local function makeSection(text, lo)
     makeSpacer(4, lo - 1)
-    local lbl = Instance.new("TextLabel", content)
-    lbl.Size               = UDim2.new(1, 0, 0, 22)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 22)
     lbl.BackgroundTransparency = 1
-    lbl.Text               = "— " .. text
-    lbl.TextColor3         = C.accentDim
-    lbl.TextSize           = 10
-    lbl.Font               = Enum.Font.GothamBold
-    lbl.TextXAlignment     = Enum.TextXAlignment.Left
-    lbl.LayoutOrder        = lo
+    lbl.Text = "— " .. text
+    lbl.TextColor3 = C.accentDim
+    lbl.TextSize = 10
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.LayoutOrder = lo
+    lbl.Parent = content
 end
 
 local function makeToggle(label, desc, default, lo, callback)
-    local row = Instance.new("Frame", content)
-    row.Size             = UDim2.new(1, 0, 0, 52)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 52)
     row.BackgroundColor3 = C.row
-    row.BorderSizePixel  = 0
-    row.LayoutOrder      = lo
+    row.BorderSizePixel = 0
+    row.LayoutOrder = lo
+    row.Parent = content
+    local rowCorner = Instance.new("UICorner")
+    rowCorner.CornerRadius = UDim.new(0, 8)
+    rowCorner.Parent = row
+    local rowStroke = Instance.new("UIStroke")
+    rowStroke.Color = C.stroke
+    rowStroke.Thickness = 1
+    rowStroke.Parent = row
 
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-    local rs = Instance.new("UIStroke", row)
-    rs.Color     = C.stroke
-    rs.Thickness = 1
-
-    local lbl = Instance.new("TextLabel", row)
-    lbl.Size               = UDim2.new(1, -68, 0, 18)
-    lbl.Position           = UDim2.new(0, 12, 0, 9)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -68, 0, 18)
+    lbl.Position = UDim2.new(0, 12, 0, 9)
     lbl.BackgroundTransparency = 1
-    lbl.Text               = label
-    lbl.TextColor3         = C.text
-    lbl.TextSize           = 12
-    lbl.Font               = Enum.Font.GothamBold
-    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.Text = label
+    lbl.TextColor3 = C.text
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
 
-    local dsc = Instance.new("TextLabel", row)
-    dsc.Size               = UDim2.new(1, -68, 0, 14)
-    dsc.Position           = UDim2.new(0, 12, 0, 28)
+    local dsc = Instance.new("TextLabel")
+    dsc.Size = UDim2.new(1, -68, 0, 14)
+    dsc.Position = UDim2.new(0, 12, 0, 28)
     dsc.BackgroundTransparency = 1
-    dsc.Text               = desc
-    dsc.TextColor3         = C.textDim
-    dsc.TextSize           = 9
-    dsc.Font               = Enum.Font.GothamBold
-    dsc.TextXAlignment     = Enum.TextXAlignment.Left
+    dsc.Text = desc
+    dsc.TextColor3 = C.textDim
+    dsc.TextSize = 9
+    dsc.Font = Enum.Font.GothamBold
+    dsc.TextXAlignment = Enum.TextXAlignment.Left
+    dsc.Parent = row
 
-    local pill = Instance.new("Frame", row)
-    pill.Size             = UDim2.new(0, 38, 0, 20)
-    pill.Position         = UDim2.new(1, -50, 0.5, -10)
+    local pill = Instance.new("Frame")
+    pill.Size = UDim2.new(0, 38, 0, 20)
+    pill.Position = UDim2.new(1, -50, 0.5, -10)
     pill.BackgroundColor3 = default and C.toggleOn or C.toggleOff
-    pill.BorderSizePixel  = 0
-    Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+    pill.BorderSizePixel = 0
+    pill.Parent = row
+    local pillCorner = Instance.new("UICorner")
+    pillCorner.CornerRadius = UDim.new(1, 0)
+    pillCorner.Parent = pill
 
-    local knob = Instance.new("Frame", pill)
-    knob.Size             = UDim2.new(0, 14, 0, 14)
-    knob.Position         = default and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = default and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
     knob.BackgroundColor3 = C.knob
-    knob.BorderSizePixel  = 0
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    knob.BorderSizePixel = 0
+    knob.Parent = pill
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = knob
 
     makeSpacer(5, lo)
 
     local isOn = default
-    local btn = Instance.new("TextButton", row)
-    btn.Size               = UDim2.new(1, 0, 1, 0)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, 0)
     btn.BackgroundTransparency = 1
-    btn.Text               = ""
+    btn.Text = ""
+    btn.Parent = row
 
     btn.MouseButton1Click:Connect(function()
         isOn = not isOn
         tw(pill, TI_FAST, { BackgroundColor3 = isOn and C.toggleOn or C.toggleOff })
-        tw(knob, TI_FAST, { Position = isOn and UDim2.new(1,-17,0.5,-7) or UDim2.new(0,3,0.5,-7) })
+        tw(knob, TI_FAST, { Position = isOn and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7) })
         callback(isOn)
     end)
 end
 
 local function makeSlider(label, min_, max_, default_, lo, callback)
-    local row = Instance.new("Frame", content)
-    row.Size             = UDim2.new(1, 0, 0, 60)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 60)
     row.BackgroundColor3 = C.row
-    row.BorderSizePixel  = 0
-    row.LayoutOrder      = lo
+    row.BorderSizePixel = 0
+    row.LayoutOrder = lo
+    row.Parent = content
+    local rowCorner = Instance.new("UICorner")
+    rowCorner.CornerRadius = UDim.new(0, 8)
+    rowCorner.Parent = row
+    local rowStroke = Instance.new("UIStroke")
+    rowStroke.Color = C.stroke
+    rowStroke.Thickness = 1
+    rowStroke.Parent = row
 
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-    local rs = Instance.new("UIStroke", row)
-    rs.Color     = C.stroke
-    rs.Thickness = 1
-
-    local lbl = Instance.new("TextLabel", row)
-    lbl.Size               = UDim2.new(1, -56, 0, 18)
-    lbl.Position           = UDim2.new(0, 12, 0, 8)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -56, 0, 18)
+    lbl.Position = UDim2.new(0, 12, 0, 8)
     lbl.BackgroundTransparency = 1
-    lbl.Text               = label
-    lbl.TextColor3         = C.text
-    lbl.TextSize           = 12
-    lbl.Font               = Enum.Font.GothamBold
-    lbl.TextXAlignment     = Enum.TextXAlignment.Left
+    lbl.Text = label
+    lbl.TextColor3 = C.text
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
 
-    local valLbl = Instance.new("TextLabel", row)
-    valLbl.Size            = UDim2.new(0, 40, 0, 18)
-    valLbl.Position        = UDim2.new(1, -52, 0, 8)
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size = UDim2.new(0, 40, 0, 18)
+    valLbl.Position = UDim2.new(1, -52, 0, 8)
     valLbl.BackgroundTransparency = 1
-    valLbl.Text            = tostring(default_)
-    valLbl.TextColor3      = C.accentDim
-    valLbl.TextSize        = 12
-    valLbl.Font            = Enum.Font.GothamBold
-    valLbl.TextXAlignment  = Enum.TextXAlignment.Right
+    valLbl.Text = tostring(default_)
+    valLbl.TextColor3 = C.accentDim
+    valLbl.TextSize = 12
+    valLbl.Font = Enum.Font.GothamBold
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    valLbl.Parent = row
 
-    local track = Instance.new("Frame", row)
-    track.Size             = UDim2.new(1, -24, 0, 3)
-    track.Position         = UDim2.new(0, 12, 0, 38)
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -24, 0, 3)
+    track.Position = UDim2.new(0, 12, 0, 38)
     track.BackgroundColor3 = C.toggleOff
-    track.BorderSizePixel  = 0
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+    track.BorderSizePixel = 0
+    track.Parent = row
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
 
-    local pct  = (default_ - min_) / (max_ - min_)
-
-    local fill = Instance.new("Frame", track)
-    fill.Size             = UDim2.new(pct, 0, 1, 0)
+    local pct = (default_ - min_) / (max_ - min_)
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(pct, 0, 1, 0)
     fill.BackgroundColor3 = C.toggleOn
-    fill.BorderSizePixel  = 0
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
 
-    local thumb = Instance.new("Frame", track)
-    thumb.Size             = UDim2.new(0, 12, 0, 12)
-    thumb.Position         = UDim2.new(pct, -6, 0.5, -6)
+    local thumb = Instance.new("Frame")
+    thumb.Size = UDim2.new(0, 12, 0, 12)
+    thumb.Position = UDim2.new(pct, -6, 0.5, -6)
     thumb.BackgroundColor3 = C.knob
-    thumb.BorderSizePixel  = 0
-    thumb.ZIndex           = 2
-    Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
+    thumb.BorderSizePixel = 0
+    thumb.ZIndex = 2
+    thumb.Parent = track
+    local thumbCorner = Instance.new("UICorner")
+    thumbCorner.CornerRadius = UDim.new(1, 0)
+    thumbCorner.Parent = thumb
 
     makeSpacer(5, lo)
 
     local dragging = false
-    local tBtn = Instance.new("TextButton", row)
-    tBtn.Size               = UDim2.new(1, 0, 0, 28)
-    tBtn.Position           = UDim2.new(0, 0, 0, 30)
+    local tBtn = Instance.new("TextButton")
+    tBtn.Size = UDim2.new(1, 0, 0, 28)
+    tBtn.Position = UDim2.new(0, 0, 0, 30)
     tBtn.BackgroundTransparency = 1
-    tBtn.Text               = ""
-    tBtn.ZIndex             = 3
+    tBtn.Text = ""
+    tBtn.ZIndex = 3
+    tBtn.Parent = row
 
     local function updateSlider(input)
-        local ax   = track.AbsolutePosition.X
-        local aw   = track.AbsoluteSize.X
+        local ax, aw = track.AbsolutePosition.X, track.AbsoluteSize.X
+        if aw == 0 then return end
         local relX = math.clamp((input.Position.X - ax) / aw, 0, 1)
-        local val  = math.round(min_ + relX * (max_ - min_))
-        valLbl.Text    = tostring(val)
-        fill.Size      = UDim2.new(relX, 0, 1, 0)
+        local val = math.floor(min_ + relX * (max_ - min_) + 0.5)
+        valLbl.Text = tostring(val)
+        fill.Size = UDim2.new(relX, 0, 1, 0)
         thumb.Position = UDim2.new(relX, -6, 0.5, -6)
         callback(val)
     end
@@ -545,18 +549,14 @@ local function makeSlider(label, min_, max_, default_, lo, callback)
         end
     end)
     UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
     end)
     tBtn.MouseButton1Up:Connect(function(x, y)
         updateSlider({ Position = Vector3.new(x, y, 0) })
     end)
 end
 
--- ============================================================
--- BUILD TOGGLE LIST
--- ============================================================
+-- ========== BUILD UI ==========
 makeSection("LIGHTING", 0)
 makeToggle("Remove Post Effects", "Silent: Bloom, blur, color correction", cfg.removePostEffects, 1, function(v)
     cfg.removePostEffects = v
@@ -591,110 +591,109 @@ makeToggle("Physics Sleep", "Silent: Idle parts skip physics calc", cfg.physicsS
     if masterEnabled then pcall(function() settings().Physics.AllowSleep = v end) end
 end)
 
--- ============================================================
--- CLOSE WARNING POPUP
--- ============================================================
-local warnFrame = Instance.new("Frame", screenGui)
-warnFrame.Size             = UDim2.new(0, 260, 0, 140)
-warnFrame.Position         = UDim2.new(0.5, -130, 0.5, -70)
+-- ========== CLOSE WARNING ==========
+local warnFrame = Instance.new("Frame")
+warnFrame.Size = UDim2.new(0, 260, 0, 140)
+warnFrame.Position = UDim2.new(0.5, -130, 0.5, -70)
 warnFrame.BackgroundColor3 = C.warnBg
-warnFrame.BorderSizePixel  = 0
-warnFrame.Visible          = false
-warnFrame.ZIndex           = 200
-
-Instance.new("UICorner", warnFrame).CornerRadius = UDim.new(0, 12)
-local warnStroke = Instance.new("UIStroke", warnFrame)
-warnStroke.Color     = C.warnAccent
+warnFrame.BorderSizePixel = 0
+warnFrame.Visible = false
+warnFrame.ZIndex = 200
+warnFrame.Parent = screenGui
+local warnCorner = Instance.new("UICorner")
+warnCorner.CornerRadius = UDim.new(0, 12)
+warnCorner.Parent = warnFrame
+local warnStroke = Instance.new("UIStroke")
+warnStroke.Color = C.warnAccent
 warnStroke.Thickness = 1
+warnStroke.Parent = warnFrame
 
-local warnTitle = Instance.new("TextLabel", warnFrame)
-warnTitle.Size               = UDim2.new(1, 0, 0, 36)
-warnTitle.Position           = UDim2.new(0, 0, 0, 14)
+local warnTitle = Instance.new("TextLabel")
+warnTitle.Size = UDim2.new(1, 0, 0, 36)
+warnTitle.Position = UDim2.new(0, 0, 0, 14)
 warnTitle.BackgroundTransparency = 1
-warnTitle.Text               = "⚠  KELUAR DARI UI?"
-warnTitle.TextColor3         = C.warnAccent
-warnTitle.TextSize           = 14
-warnTitle.Font               = Enum.Font.GothamBold
-warnTitle.ZIndex             = 201
+warnTitle.Text = "⚠  KELUAR DARI UI?"
+warnTitle.TextColor3 = C.warnAccent
+warnTitle.TextSize = 14
+warnTitle.Font = Enum.Font.GothamBold
+warnTitle.ZIndex = 201
+warnTitle.Parent = warnFrame
 
-local warnDesc = Instance.new("TextLabel", warnFrame)
-warnDesc.Size                = UDim2.new(1, -24, 0, 28)
-warnDesc.Position            = UDim2.new(0, 12, 0, 46)
+local warnDesc = Instance.new("TextLabel")
+warnDesc.Size = UDim2.new(1, -24, 0, 28)
+warnDesc.Position = UDim2.new(0, 12, 0, 46)
 warnDesc.BackgroundTransparency = 1
-warnDesc.Text                = "Semua pengaturan FPS akan direset.\nYakin ingin menutup Silent Hub?"
-warnDesc.TextColor3          = C.textDim
-warnDesc.TextSize            = 10
-warnDesc.Font                = Enum.Font.GothamBold
-warnDesc.TextWrapped         = true
-warnDesc.ZIndex              = 201
+warnDesc.Text = "Semua pengaturan FPS akan direset.\nYakin ingin menutup Silent Hub?"
+warnDesc.TextColor3 = C.textDim
+warnDesc.TextSize = 10
+warnDesc.Font = Enum.Font.GothamBold
+warnDesc.TextWrapped = true
+warnDesc.ZIndex = 201
+warnDesc.Parent = warnFrame
 
-local warnCloseBtn = Instance.new("TextButton", warnFrame)
-warnCloseBtn.Size             = UDim2.new(0, 110, 0, 30)
-warnCloseBtn.Position         = UDim2.new(0, 12, 1, -42)
+local warnCloseBtn = Instance.new("TextButton")
+warnCloseBtn.Size = UDim2.new(0, 110, 0, 30)
+warnCloseBtn.Position = UDim2.new(0, 12, 1, -42)
 warnCloseBtn.BackgroundColor3 = Color3.fromRGB(80, 38, 38)
-warnCloseBtn.Text             = "Lanjut Close"
-warnCloseBtn.TextColor3       = Color3.fromRGB(220, 120, 120)
-warnCloseBtn.TextSize         = 11
-warnCloseBtn.Font             = Enum.Font.GothamBold
-warnCloseBtn.BorderSizePixel  = 0
-warnCloseBtn.ZIndex           = 202
-Instance.new("UICorner", warnCloseBtn).CornerRadius = UDim.new(0, 7)
+warnCloseBtn.Text = "Lanjut Close"
+warnCloseBtn.TextColor3 = Color3.fromRGB(220, 120, 120)
+warnCloseBtn.TextSize = 11
+warnCloseBtn.Font = Enum.Font.GothamBold
+warnCloseBtn.BorderSizePixel = 0
+warnCloseBtn.ZIndex = 202
+warnCloseBtn.Parent = warnFrame
+local warnCloseCorner = Instance.new("UICorner")
+warnCloseCorner.CornerRadius = UDim.new(0, 7)
+warnCloseCorner.Parent = warnCloseBtn
 
-local warnBackBtn = Instance.new("TextButton", warnFrame)
-warnBackBtn.Size             = UDim2.new(0, 110, 0, 30)
-warnBackBtn.Position         = UDim2.new(1, -122, 1, -42)
+local warnBackBtn = Instance.new("TextButton")
+warnBackBtn.Size = UDim2.new(0, 110, 0, 30)
+warnBackBtn.Position = UDim2.new(1, -122, 1, -42)
 warnBackBtn.BackgroundColor3 = Color3.fromRGB(36, 36, 46)
-warnBackBtn.Text             = "Back to UI"
-warnBackBtn.TextColor3       = C.accentDim
-warnBackBtn.TextSize         = 11
-warnBackBtn.Font             = Enum.Font.GothamBold
-warnBackBtn.BorderSizePixel  = 0
-warnBackBtn.ZIndex           = 202
-Instance.new("UICorner", warnBackBtn).CornerRadius = UDim.new(0, 7)
+warnBackBtn.Text = "Back to UI"
+warnBackBtn.TextColor3 = C.accentDim
+warnBackBtn.TextSize = 11
+warnBackBtn.Font = Enum.Font.GothamBold
+warnBackBtn.BorderSizePixel = 0
+warnBackBtn.ZIndex = 202
+warnBackBtn.Parent = warnFrame
+local warnBackCorner = Instance.new("UICorner")
+warnBackCorner.CornerRadius = UDim.new(0, 7)
+warnBackCorner.Parent = warnBackBtn
 
--- ============================================================
--- POPUP ICON (visible when minimized)
--- ============================================================
-local popupBtn = Instance.new("ImageButton", screenGui)
-popupBtn.Size             = UDim2.new(0, 54, 0, 54)
-popupBtn.Position         = UDim2.new(0, 16, 0.5, -27)
+-- ========== POPUP ICON ==========
+local popupBtn = Instance.new("ImageButton")
+popupBtn.Size = UDim2.new(0, 54, 0, 54)
+popupBtn.Position = UDim2.new(0, 16, 0.5, -27)
 popupBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
-popupBtn.Image            = "rbxassetid://75661763021425"
-popupBtn.ImageColor3      = Color3.fromRGB(200, 200, 210)
-popupBtn.BorderSizePixel  = 0
-popupBtn.Active           = true
-popupBtn.Draggable        = true
-popupBtn.Visible          = false
-popupBtn.ZIndex           = 50
-
-Instance.new("UICorner", popupBtn).CornerRadius = UDim.new(0, 12)
-
-local popupStroke = Instance.new("UIStroke", popupBtn)
-popupStroke.Color     = Color3.fromRGB(200, 200, 215)
+popupBtn.Image = "rbxassetid://75661763021425"
+popupBtn.ImageColor3 = Color3.fromRGB(200, 200, 210)
+popupBtn.BorderSizePixel = 0
+popupBtn.Active = true
+popupBtn.Draggable = true
+popupBtn.Visible = false
+popupBtn.ZIndex = 50
+popupBtn.Parent = screenGui
+local popupCorner = Instance.new("UICorner")
+popupCorner.CornerRadius = UDim.new(0, 12)
+popupCorner.Parent = popupBtn
+local popupStroke = Instance.new("UIStroke")
+popupStroke.Color = Color3.fromRGB(200, 200, 215)
 popupStroke.Thickness = 2
+popupStroke.Parent = popupBtn
 
--- ============================================================
--- SHOW MAIN UI (animated expand)
--- ============================================================
+-- ========== SHOW MAIN UI ==========
 local function showMainUI()
-    mainFrame.Visible  = true
-    mainFrame.ClipsDescendants = true
-    mainFrame.Size     = UDim2.new(0, 300, 0, 0)
+    mainFrame.Visible = true
+    mainFrame.Size = UDim2.new(0, 300, 0, 0)
     mainFrame.Position = UDim2.new(0.5, -150, 0.5, 0)
     tw(mainFrame, TI_MED, {
-        Size     = UDim2.new(0, 300, 0, 400),
+        Size = UDim2.new(0, 300, 0, 400),
         Position = UDim2.new(0.5, -150, 0.5, -200),
     })
 end
 
--- ============================================================
--- OPEN ON EXECUTE — muncul langsung
--- ============================================================
-task.defer(showMainUI)
-
--- ============================================================
--- MASTER ON/OFF
--- ============================================================
+-- ========== MASTER ON/OFF ==========
 masterBtn.MouseButton1Click:Connect(function()
     masterEnabled = not masterEnabled
     if masterEnabled then
@@ -708,25 +707,20 @@ masterBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ============================================================
--- MINIMIZE (S)
--- ============================================================
+-- ========== MINIMIZE ==========
 minBtn.MouseButton1Click:Connect(function()
     tw(mainFrame, TI_FAST, {
-        Size     = UDim2.new(0, 300, 0, 0),
+        Size = UDim2.new(0, 300, 0, 0),
         Position = UDim2.new(0.5, -150, 0.5, 0),
     })
     task.delay(0.2, function()
         mainFrame.Visible = false
         popupBtn.ImageTransparency = 1
-        popupBtn.Visible  = true
+        popupBtn.Visible = true
         tw(popupBtn, TI_MED, { ImageTransparency = 0 })
     end)
 end)
 
--- ============================================================
--- POPUP → restore main UI
--- ============================================================
 popupBtn.MouseButton1Click:Connect(function()
     tw(popupBtn, TI_FAST, { ImageTransparency = 1 })
     task.delay(0.2, function()
@@ -742,12 +736,10 @@ popupBtn.MouseLeave:Connect(function()
     tw(popupBtn, TI_FAST, { ImageColor3 = Color3.fromRGB(200, 200, 210) })
 end)
 
--- ============================================================
--- CLOSE (X) → warning popup
--- ============================================================
+-- ========== CLOSE ==========
 closeBtn.MouseButton1Click:Connect(function()
     warnFrame.Visible = true
-    warnFrame.Size    = UDim2.new(0, 260, 0, 0)
+    warnFrame.Size = UDim2.new(0, 260, 0, 0)
     tw(warnFrame, TI_MED, { Size = UDim2.new(0, 260, 0, 140) })
 end)
 
@@ -758,13 +750,14 @@ end)
 
 warnCloseBtn.MouseButton1Click:Connect(function()
     revertAll()
-    tw(mainFrame,  TI_FAST, { BackgroundTransparency = 1 })
-    tw(warnFrame,  TI_FAST, { BackgroundTransparency = 1 })
+    tw(mainFrame, TI_FAST, { BackgroundTransparency = 1 })
+    tw(warnFrame, TI_FAST, { BackgroundTransparency = 1 })
     task.delay(0.25, function()
         screenGui:Destroy()
     end)
 end)
 
--- ============================================================
--- END
--- ============================================================
+-- ========== START ==========
+task.defer(showMainUI)
+
+print("[Silent Hub] FPS Booster loaded - GUI siap digunakan!")
